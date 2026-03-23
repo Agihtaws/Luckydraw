@@ -1,0 +1,194 @@
+// src/abi.js
+// RaffleEngine ABI — only the functions and events the frontend needs.
+// Keeping this minimal avoids bundling the full ABI.
+
+export const RAFFLE_ABI = [
+  // ── Read ──────────────────────────────────────────────────
+  {
+    name: "getCampaign",
+    type: "function",
+    stateMutability: "view",
+    inputs:  [{ name: "campaignId", type: "uint64" }],
+    outputs: [{
+      name: "", type: "tuple",
+      components: [
+        { name: "id",                 type: "uint64"  },
+        { name: "admin",              type: "address" },
+        { name: "numWinners",         type: "uint8"   },
+        { name: "prizePerWinner",     type: "uint256" },
+        { name: "entryFee",           type: "uint256" },
+        { name: "entryWindowSecs",    type: "uint64"  },
+        { name: "repeatIntervalSecs", type: "uint64"  },
+        { name: "prizeMode",          type: "uint8"   },
+        { name: "cooldownEnabled",    type: "bool"    },
+        { name: "paused",             type: "bool"    },
+        { name: "cancelled",          type: "bool"    },
+        { name: "totalPool",          type: "uint256" },
+        { name: "remainingPool",      type: "uint256" },
+        { name: "totalRoundsRun",     type: "uint64"  },
+        { name: "totalWinnersPaid",   type: "uint64"  },
+        { name: "totalDistributed",   type: "uint256" },
+      ],
+    }],
+  },
+  {
+    name: "getCurrentRound",
+    type: "function",
+    stateMutability: "view",
+    inputs:  [{ name: "campaignId", type: "uint64" }],
+    outputs: [{
+      name: "", type: "tuple",
+      components: [
+        { name: "id",               type: "uint64"  },
+        { name: "campaignId",       type: "uint64"  },
+        { name: "roundNumber",      type: "uint64"  },
+        { name: "status",           type: "uint8"   },
+        { name: "openTime",         type: "uint64"  },
+        { name: "drawTime",         type: "uint64"  },
+        { name: "entryCount",       type: "uint32"  },
+        { name: "pool",             type: "uint256" },
+        { name: "blockHashUsed",    type: "bytes32" },
+        { name: "rolloverIncluded", type: "bool"    },
+      ],
+    }],
+  },
+  {
+    name: "getRound",
+    type: "function",
+    stateMutability: "view",
+    inputs:  [{ name: "roundId", type: "uint64" }],
+    outputs: [{
+      name: "", type: "tuple",
+      components: [
+        { name: "id",               type: "uint64"  },
+        { name: "campaignId",       type: "uint64"  },
+        { name: "roundNumber",      type: "uint64"  },
+        { name: "status",           type: "uint8"   },
+        { name: "openTime",         type: "uint64"  },
+        { name: "drawTime",         type: "uint64"  },
+        { name: "entryCount",       type: "uint32"  },
+        { name: "pool",             type: "uint256" },
+        { name: "blockHashUsed",    type: "bytes32" },
+        { name: "rolloverIncluded", type: "bool"    },
+      ],
+    }],
+  },
+  {
+    name: "getEntrants",
+    type: "function",
+    stateMutability: "view",
+    inputs:  [{ name: "roundId", type: "uint64" }],
+    outputs: [{ name: "", type: "address[]" }],
+  },
+  {
+    name: "getWinners",
+    type: "function",
+    stateMutability: "view",
+    inputs:  [{ name: "roundId", type: "uint64" }],
+    outputs: [{ name: "", type: "address[]" }],
+  },
+  {
+    name: "hasEntered",
+    type: "function",
+    stateMutability: "view",
+    inputs:  [{ name: "roundId", type: "uint64" }, { name: "wallet", type: "address" }],
+    outputs: [{ name: "", type: "bool" }],
+  },
+  {
+    name: "getCampaignCount",
+    type: "function",
+    stateMutability: "view",
+    inputs:  [],
+    outputs: [{ name: "", type: "uint64" }],
+  },
+
+  // ── Write ─────────────────────────────────────────────────
+  {
+    name: "enter",
+    type: "function",
+    stateMutability: "payable",
+    inputs:  [{ name: "campaignId", type: "uint64" }],
+    outputs: [],
+  },
+  {
+    name: "emergencyCancel",
+    type: "function",
+    stateMutability: "nonpayable",
+    inputs:  [{ name: "campaignId", type: "uint64" }],
+    outputs: [],
+  },
+  {
+    name: "topUpPool",
+    type: "function",
+    stateMutability: "payable",
+    inputs:  [{ name: "campaignId", type: "uint64" }],
+    outputs: [],
+  },
+  {
+    name: "topUpPool",
+    type: "function",
+    stateMutability: "payable",
+    inputs:  [{ name: "campaignId", type: "uint64" }],
+    outputs: [],
+  },
+  {
+    name: "createCampaign",
+    type: "function",
+    stateMutability: "payable",
+    inputs: [
+      { name: "numWinners",         type: "uint8"   },
+      { name: "prizePerWinner",     type: "uint256" },
+      { name: "entryFee",           type: "uint256" },
+      { name: "entryWindowSecs",    type: "uint64"  },
+      { name: "repeatIntervalSecs", type: "uint64"  },
+      { name: "prizeMode",          type: "uint8"   },
+      { name: "cooldownEnabled",    type: "bool"    },
+      { name: "firstOpenDelayMs",   type: "uint64"  },
+    ],
+    outputs: [],
+  },
+
+  // ── Events ────────────────────────────────────────────────
+  {
+    name: "RaffleOpened",
+    type: "event",
+    inputs: [
+      { name: "campaignId",  type: "uint64",  indexed: true  },
+      { name: "roundId",     type: "uint64",  indexed: true  },
+      { name: "roundNumber", type: "uint64",  indexed: false },
+      { name: "pool",        type: "uint256", indexed: false },
+      { name: "drawTime",    type: "uint64",  indexed: false },
+    ],
+  },
+  {
+    name: "EntrySubmitted",
+    type: "event",
+    inputs: [
+      { name: "campaignId",  type: "uint64",  indexed: true  },
+      { name: "roundId",     type: "uint64",  indexed: true  },
+      { name: "entrant",     type: "address", indexed: true  },
+      { name: "entryNumber", type: "uint32",  indexed: false },
+    ],
+  },
+  {
+    name: "WinnersSelected",
+    type: "event",
+    inputs: [
+      { name: "campaignId",    type: "uint64",    indexed: true  },
+      { name: "roundId",       type: "uint64",    indexed: true  },
+      { name: "winners",       type: "address[]", indexed: false },
+      { name: "prizes",        type: "uint256[]", indexed: false },
+      { name: "blockHashUsed", type: "bytes32",   indexed: false },
+    ],
+  },
+];
+
+// Round status enum matching the contract
+export const ROUND_STATUS = {
+  0: "UPCOMING",
+  1: "OPEN",
+  2: "DRAWING",
+  3: "COMPLETE",
+  4: "ROLLEDOVER",
+  5: "CANCELLED",
+};
