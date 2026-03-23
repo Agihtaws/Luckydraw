@@ -1,18 +1,7 @@
-// src/index.js
-// ReactRaffle backend entry point.
-// Starts:
-//   1. Express API server (webhook config, health check)
-//   2. Data Streams SDK (schema registration)
-//   3. Reactivity WebSocket subscription (event listener → Discord)
-
 import "dotenv/config";
 import { createApiServer, getWebhookUrl } from "./api.js";
 import { initStreams, schemaIds }          from "./streams.js";
 import { startReactivity }                from "./reactivity.js";
-
-// ─────────────────────────────────────────────────────────────
-// Validate required env vars
-// ─────────────────────────────────────────────────────────────
 
 const REQUIRED = ["RPC_URL", "WS_URL", "PRIVATE_KEY", "CONTRACT_ADDRESS"];
 for (const key of REQUIRED) {
@@ -23,10 +12,6 @@ for (const key of REQUIRED) {
 }
 
 const PORT = process.env.PORT || 3001;
-
-// ─────────────────────────────────────────────────────────────
-// Startup
-// ─────────────────────────────────────────────────────────────
 
 async function main() {
   console.log("\n════════════════════════════════════════════════════════");

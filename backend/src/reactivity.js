@@ -1,7 +1,3 @@
-// src/reactivity.js
-// Subscribes to RaffleEngine contract events via Somnia off-chain reactivity.
-// Uses WebSocket — fires callback the moment an event is emitted, no polling.
-
 import { SDK }            from "@somnia-chain/reactivity";
 import { decodeEventLog, parseAbi, formatEther } from "viem";
 import { publicWsClient } from "./chain.js";
@@ -22,9 +18,7 @@ import {
 } from "./streams.js";
 import "dotenv/config";
 
-// ─────────────────────────────────────────────────────────────
-// Contract ABI — only the events we care about
-// ─────────────────────────────────────────────────────────────
+// Contract ABI
 
 const RAFFLE_ABI = parseAbi([
   "event CampaignCreated(uint64 indexed campaignId, address indexed admin, uint8 numWinners, uint256 prizePerWinner, uint256 entryFee, uint64 entryWindowSecs, uint64 repeatIntervalSecs, uint8 prizeMode, bool cooldownEnabled, uint256 totalPool)",
@@ -36,10 +30,6 @@ const RAFFLE_ABI = parseAbi([
   "event NextRoundScheduled(uint64 indexed campaignId, uint64 indexed nextRoundId, uint64 openTime, uint64 drawTime)",
 ]);
 
-// ─────────────────────────────────────────────────────────────
-// Deduplication — prevent same event firing multiple times on reconnect
-// Key: txHash-logIndex, TTL: 5 minutes
-// ─────────────────────────────────────────────────────────────
 const seenEvents = new Map(); // key → timestamp
 
 function isDuplicate(txHash, logIndex) {
@@ -54,12 +44,10 @@ function isDuplicate(txHash, logIndex) {
   return false;
 }
 
-// ─────────────────────────────────────────────────────────────
 // Start subscription
-// ─────────────────────────────────────────────────────────────
 
 // Retry config
-const RETRY_DELAYS = [5_000, 10_000, 30_000, 60_000]; // escalating backoff
+const RETRY_DELAYS = [5_000, 10_000, 30_000, 60_000];
 let retryCount = 0;
 
 export async function startReactivity() {
@@ -103,7 +91,6 @@ export async function startReactivity() {
         const { topics, data: logData } = data.result;
         if (!topics || topics.length === 0) return;
 
-        // Deduplicate using txHash + logIndex to prevent replay on reconnect
         const txHash   = data.result.transactionHash || topics[0];
         const logIndex = data.result.logIndex ?? 0;
         if (isDuplicate(txHash, logIndex)) {
@@ -140,9 +127,7 @@ export async function startReactivity() {
   }
 }
 
-// ─────────────────────────────────────────────────────────────
 // Event handler
-// ─────────────────────────────────────────────────────────────
 
 async function handleEvent(decoded, contractAddress) {
   const { eventName, args } = decoded;
@@ -165,14 +150,7 @@ async function handleEvent(decoded, contractAddress) {
       else if (repeatSecs === 604800)  scheduleLabel = "Weekly";
       else                             scheduleLabel = `Every ${Math.round(repeatSecs / 86400)} days`;
 
-      // Calculate first open time from block.timestamp + firstOpenDelayMs
-      // We don't have block.timestamp here directly, but we know the round's openTime
-      // is stored in the contract. Use Date.now() + entryWindowSecs as a conservative estimate.
-      // The exact value comes from NextRoundScheduled — for CampaignCreated we read it
-      // from the createCampaign tx timestamp + firstOpenDelayMs.
-      // Best approximation: now + 60s (default firstOpenDelayMs) — frontend will show exact.
-      // We'll use the openTime from the upcoming round via a short RPC call.
-      let openTimeSecs = BigInt(Math.floor(Date.now() / 1000) + 60); // fallback
+      let openTimeSecs = BigInt(Math.floor(Date.now() / 1000) + 60); 
       try {
         const { publicHttpClient } = await import("./chain.js");
         const RaffleABI = [{
@@ -266,13 +244,7 @@ async function handleEvent(decoded, contractAddress) {
 
     case "EntrySubmitted": {
       const { campaignId, roundId, entrant, entryNumber } = args;
-
-      // Data Streams — write entry record (frontend reads for live counter)
       await publishEntry({ campaignId, roundId, entrant, entryNumber });
-
-      // Also update round state entry count
-      // (We don't have the full round data here, so just log — frontend
-      //  can derive count from total entry records)
       console.log(`[reactivity]    Entry #${entryNumber} from ${entrant}`);
 
       break;
@@ -308,7 +280,7 @@ async function handleEvent(decoded, contractAddress) {
       await publishRoundState({
         campaignId,
         roundId,
-        roundNumber:   0n,  // not available here; frontend can look it up
+        roundNumber:   0n,
         status:        STATUS.COMPLETE,
         poolWei:       0n,
         drawTime:      0n,
@@ -382,9 +354,7 @@ async function handleEvent(decoded, contractAddress) {
   }
 }
 
-// ─────────────────────────────────────────────────────────────
 // Utility — JSON.stringify safe for BigInt
-// ─────────────────────────────────────────────────────────────
 
 function bigIntReplacer(_, v) {
   return typeof v === "bigint" ? v.toString() : v;

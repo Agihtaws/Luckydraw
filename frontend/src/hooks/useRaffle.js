@@ -1,6 +1,3 @@
-// src/hooks/useRaffle.js
-// All contract reads using wagmi hooks (auto-refetch, caching built in)
-
 import { useReadContract, useReadContracts } from "wagmi";
 import { formatEther }                       from "viem";
 import { CONTRACT_ADDRESS }                  from "../config/wagmi.js";

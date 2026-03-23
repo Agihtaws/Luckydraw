@@ -7,17 +7,17 @@ pragma solidity ^0.8.20;
 ///         Field names and order match Somnia documentation exactly.
 interface ISomniaReactivityPrecompile {
     struct SubscriptionData {
-        bytes32[4] eventTopics;          // Topic filter — bytes32(0) = wildcard
-        address    origin;               // tx.origin filter  — address(0) = any
-        address    caller;               // msg.sender filter — address(0) = any
-        address    emitter;              // event emitter filter — address(0) = any
-        address    handlerContractAddress; // contract to invoke on match
-        bytes4     handlerFunctionSelector; // 4-byte selector of handler function
-        uint64     priorityFeePerGas;    // nanoSomi tip per gas unit
-        uint64     maxFeePerGas;         // nanoSomi max fee per gas unit
-        uint64     gasLimit;             // max gas provisioned per invocation
-        bool       isGuaranteed;         // retry in next block if current block full
-        bool       isCoalesced;          // batch multiple matching events per block
+        bytes32[4] eventTopics;          
+        address    origin;               
+        address    caller;               
+        address    emitter;              
+        address    handlerContractAddress; 
+        bytes4     handlerFunctionSelector; 
+        uint64     priorityFeePerGas;    
+        uint64     maxFeePerGas;         
+        uint64     gasLimit;             
+        bool       isGuaranteed;         
+        bool       isCoalesced;          
     }
 
     event SubscriptionCreated(

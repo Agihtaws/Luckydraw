@@ -1,4 +1,3 @@
-// src/pages/AdminPage.jsx
 import React, { useState }      from "react";
 import { useAccount, useWriteContract, useWaitForTransactionReceipt, useReadContract } from "wagmi";
 import { parseEther, formatEther, decodeEventLog } from "viem";
@@ -194,7 +193,7 @@ function CreateCampaignForm({ navigate }) {
     prize: "5", numWinners: "1", entryFee: "0",
     windowMins: "5", scheduleIdx: "5", openIdx: "0",
     prizeMode: "0", cooldown: false,
-    rounds: "1",   // ← NEW: how many rounds to fund
+    rounds: "1", 
   });
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));

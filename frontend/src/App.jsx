@@ -6,10 +6,6 @@ import CampaignPage        from "./pages/CampaignPage.jsx";
 import AdminPage           from "./pages/AdminPage.jsx";
 import HistoryPage         from "./pages/HistoryPage.jsx";
 
-// ─────────────────────────────────────────────────────────────
-// History API router — clean URLs, no #
-// ─────────────────────────────────────────────────────────────
-
 function getRoute() {
   const path = window.location.pathname;
   if (path.startsWith("/campaign/")) return { page: "campaign", id: path.split("/")[2] };
@@ -39,7 +35,7 @@ export default function App() {
     return () => window.removeEventListener("popstate", handler);
   }, []);
 
-  // Support ?campaign=1 from Discord link
+
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const cid = params.get("campaign");
@@ -47,11 +43,11 @@ export default function App() {
   }, []);
 
   const goTo = (path) => {
-    // Accept both named shortcuts ("home") and full paths ("/campaign/1")
+
     if (path === "home")         navigate("/");
     else if (path === "admin")   navigate("/admin");
     else if (path === "history") navigate("/history");
-    else                         navigate(path);  // full path like /campaign/1
+    else                         navigate(path); 
   };
 
   return (

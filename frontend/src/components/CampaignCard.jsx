@@ -1,4 +1,3 @@
-// src/components/CampaignCard.jsx
 import React        from "react";
 import { formatEther } from "viem";
 import { useReadContract } from "wagmi";

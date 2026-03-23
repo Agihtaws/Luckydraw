@@ -1,13 +1,8 @@
-// src/chain.js
-// Viem clients for Somnia testnet — HTTP for reads/writes, WS for reactivity
-
 import { createPublicClient, createWalletClient, http, webSocket, defineChain } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import "dotenv/config";
 
-// ─────────────────────────────────────────────────────────────
 // Somnia Testnet chain definition
-// ─────────────────────────────────────────────────────────────
 
 export const somniaTestnet = defineChain({
   id: 50312,
@@ -26,19 +21,16 @@ export const somniaTestnet = defineChain({
   },
 });
 
-// ─────────────────────────────────────────────────────────────
+
 // HTTP client — reads, Data Streams writes
-// ─────────────────────────────────────────────────────────────
 
 export const publicHttpClient = createPublicClient({
   chain:     somniaTestnet,
   transport: http(process.env.RPC_URL),
 });
 
-// ─────────────────────────────────────────────────────────────
-// WebSocket client — reactivity subscriptions only
-// ─────────────────────────────────────────────────────────────
 
+// WebSocket client — reactivity subscriptions only
 // Primary WS — falls back to WS_URL_2 if set
 const wsUrl = process.env.WS_URL || "ws://api.infra.testnet.somnia.network/ws";
 
@@ -53,9 +45,7 @@ export const publicWsClient = createPublicClient({
   }),
 });
 
-// ─────────────────────────────────────────────────────────────
 // Wallet client — Data Streams publishing
-// ─────────────────────────────────────────────────────────────
 
 export function getWalletClient() {
   const pk = process.env.PRIVATE_KEY;

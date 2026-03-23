@@ -1,4 +1,3 @@
-// src/pages/HistoryPage.jsx
 import React, { useMemo } from "react";
 import { useReadContracts, useReadContract } from "wagmi";
 import { formatEther }    from "viem";

@@ -1,14 +1,9 @@
-// src/discord.js
-// Posts messages to a Discord channel via webhook.
-
 import "dotenv/config";
 import { getWebhookUrl } from "./api.js";
 const EXPLORER = "https://shannon-explorer.somnia.network";
 const FRONTEND = process.env.FRONTEND_URL || "https://your-frontend.com";
 
-// ─────────────────────────────────────────────────────────────
 // Core poster
-// ─────────────────────────────────────────────────────────────
 
 async function post(payload) {
   const WEBHOOK = getWebhookUrl();
@@ -33,9 +28,7 @@ async function post(payload) {
   }
 }
 
-// ─────────────────────────────────────────────────────────────
 // Helpers
-// ─────────────────────────────────────────────────────────────
 
 function timeStr(unixSecs) {
   return new Date(Number(unixSecs) * 1000).toLocaleString("en-US", {
@@ -56,10 +49,9 @@ function openDesc(openTimeSecs) {
   return `on **${new Date(openMs).toLocaleString("en-US", { weekday: "long", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", timeZoneName: "short" })}**`;
 }
 
-// ─────────────────────────────────────────────────────────────
 // Message 1 — Campaign created (fires on createCampaign tx)
 // Shows exact open time — never says "shortly"
-// ─────────────────────────────────────────────────────────────
+
 
 export async function postCampaignCreated({
   campaignId, numWinners, prizeEth, totalPoolEth,
@@ -87,9 +79,9 @@ export async function postCampaignCreated({
   });
 }
 
-// ─────────────────────────────────────────────────────────────
+
 // Message 2 — 30-minute reminder (scheduled via setTimeout)
-// ─────────────────────────────────────────────────────────────
+
 
 export async function postReminder({ campaignId, roundNumber, prizeEth, openTime }) {
   const entryLink = `${FRONTEND}?campaign=${campaignId}`;
@@ -111,9 +103,9 @@ export async function postReminder({ campaignId, roundNumber, prizeEth, openTime
   });
 }
 
-// ─────────────────────────────────────────────────────────────
+
 // Message 3 — Raffle is LIVE (fires on RaffleOpened event)
-// ─────────────────────────────────────────────────────────────
+
 
 export async function postRaffleOpened({ campaignId, roundId, roundNumber, poolEth, drawTime, contractAddress }) {
   const entryLink = `${FRONTEND}?campaign=${campaignId}`;
@@ -136,9 +128,9 @@ export async function postRaffleOpened({ campaignId, roundId, roundNumber, poolE
   });
 }
 
-// ─────────────────────────────────────────────────────────────
+
 // Message 4 — Winners announced (fires on WinnersSelected)
-// ─────────────────────────────────────────────────────────────
+
 
 export async function postWinnersSelected({ campaignId, roundId, winners, prizesEth, blockHash, contractAddress }) {
   const verifyLink  = `${EXPLORER}/address/${contractAddress}?tab=logs`;
@@ -163,9 +155,9 @@ export async function postWinnersSelected({ campaignId, roundId, winners, prizes
   });
 }
 
-// ─────────────────────────────────────────────────────────────
+
 // Message 5 — Next round scheduled (fires on NextRoundScheduled)
-// ─────────────────────────────────────────────────────────────
+
 
 export async function postNextRound({ campaignId, nextRoundId, openTime, drawTime }) {
   await post({
@@ -185,9 +177,9 @@ export async function postNextRound({ campaignId, nextRoundId, openTime, drawTim
   });
 }
 
-// ─────────────────────────────────────────────────────────────
+
 // Message 6 — Rollover
-// ─────────────────────────────────────────────────────────────
+
 
 export async function postRollover({ campaignId, roundId, nextRoundId, poolEth }) {
   await post({
@@ -202,9 +194,9 @@ export async function postRollover({ campaignId, roundId, nextRoundId, poolEth }
   });
 }
 
-// ─────────────────────────────────────────────────────────────
+
 // Message 7 — Pool depleted / campaign complete
-// ─────────────────────────────────────────────────────────────
+
 
 export async function postPoolDepleted({ campaignId }) {
   await post({

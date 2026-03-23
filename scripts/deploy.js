@@ -1,27 +1,10 @@
-// scripts/deploy.js
-// Production deploy script for RaffleEngine — Somnia Testnet
-// Usage: npx hardhat run scripts/deploy.js --network somnia_testnet
-//
-// Requires ethers v6 (default in Hardhat 3+).
-// If you see ".utils is not a function" errors you are on ethers v5 —
-// run: npm install --save-dev ethers@6
-
 const { ethers, network, run } = require("hardhat");
 const fs   = require("fs");
 const path = require("path");
-
-// ─────────────────────────────────────────────────────────────
-// Config
-// ─────────────────────────────────────────────────────────────
-
-const BUFFER_STT      = "32";          // exact minimum required by Somnia Reactivity
+const BUFFER_STT      = "32";          
 const DEPLOYED_JSON   = path.join(__dirname, "..", "deployed.json");
-const VERIFY_DELAY_MS = 30_000;        // wait 30s for explorer to index before verify
-const CONFIRM_BLOCKS  = 2;             // block confirmations to wait after each tx
-
-// ─────────────────────────────────────────────────────────────
-// Helpers
-// ─────────────────────────────────────────────────────────────
+const VERIFY_DELAY_MS = 30_000;        
+const CONFIRM_BLOCKS  = 2;            
 
 function log(msg)  { console.log(`\n[deploy] ${msg}`); }
 function ok(msg)   { console.log(`    ✅  ${msg}`); }
@@ -52,33 +35,23 @@ function saveDeployed(record) {
   ok(`deployed.json saved  →  ${DEPLOYED_JSON}`);
 }
 
-// ─────────────────────────────────────────────────────────────
-// Main
-// ─────────────────────────────────────────────────────────────
-
 async function main() {
-
-  // ── Preflight ──────────────────────────────────────────────
 
   log("Starting preflight checks…");
 
   const [deployer] = await ethers.getSigners();
   const netInfo    = await ethers.provider.getNetwork();
-
-  // FIX: ethers v6 — chainId is a BigInt, not a number
   const chainId = netInfo.chainId;
 
   console.log(`    Network   : ${network.name}  (chainId ${chainId})`);
   console.log(`    Deployer  : ${deployer.address}`);
 
   const balanceBefore = await ethers.provider.getBalance(deployer.address);
-  // FIX: ethers v6 — ethers.formatEther(), not ethers.utils.formatEther()
+
   console.log(`    Balance   : ${ethers.formatEther(balanceBefore)} STT`);
 
-  // FIX: ethers v6 — ethers.parseEther(), not ethers.utils.parseEther()
   const bufferWei = ethers.parseEther(BUFFER_STT);
 
-  // FIX: ethers v6 — chainId is BigInt, native comparison works
   if (balanceBefore < bufferWei) {
     fail(
       `Deployer balance (${ethers.formatEther(balanceBefore)} STT) ` +
@@ -90,18 +63,14 @@ async function main() {
 
   ok("Preflight passed.");
 
-  // ── Deploy ─────────────────────────────────────────────────
-
   log("Deploying RaffleEngine…");
 
   const Factory  = await ethers.getContractFactory("RaffleEngine");
   const contract = await Factory.deploy();
 
   log(`Waiting for ${CONFIRM_BLOCKS} confirmation(s)…`);
-  // FIX: ethers v6 — deploymentTransaction() is a method, not a property
   await contract.deploymentTransaction().wait(CONFIRM_BLOCKS);
 
-  // FIX: ethers v6 — contract address is contract.target, not contract.address
   const address = contract.target;
   const txHash  = contract.deploymentTransaction().hash;
 
@@ -110,7 +79,6 @@ async function main() {
   console.log(`    Tx hash   : ${txHash}`);
   console.log(`    Explorer  : https://shannon-explorer.somnia.network/address/${address}`);
 
-  // ── Fund Buffer ────────────────────────────────────────────
 
   log(`Funding subscription buffer with ${BUFFER_STT} STT…`);
 
@@ -122,9 +90,8 @@ async function main() {
   ok(`Buffer funded with ${BUFFER_STT} STT`);
   console.log(`    Fund tx   : ${fundTx.hash}`);
 
-  // Sanity-check: read buffer back from contract
   const bufferOnChain = await contract.getSubscriptionBuffer();
-  // FIX: ethers v6 — native BigInt comparison
+
   if (bufferOnChain < bufferWei) {
     warn(
       `On-chain buffer (${ethers.formatEther(bufferOnChain)} STT) ` +
@@ -141,7 +108,7 @@ async function main() {
 
   saveDeployed({
     network:      network.name,
-    chainId:      chainId.toString(),   // BigInt → string for JSON serialisation
+    chainId:      chainId.toString(),   
     contract:     "RaffleEngine",
     address,
     deployTxHash: txHash,
@@ -152,12 +119,6 @@ async function main() {
   });
 
   // ── Verify ─────────────────────────────────────────────────
-  //
-  // Shannon explorer is Blockscout — verification uses its REST API.
-  // The customChains config in hardhat.config.js points to:
-  //   https://shannon-explorer.somnia.network/api
-  //
-  // No real API key is required for Blockscout.
 
   log(`Waiting ${VERIFY_DELAY_MS / 1000}s for explorer to index the contract…`);
   await sleep(VERIFY_DELAY_MS);
@@ -167,7 +128,7 @@ async function main() {
   try {
     await run("verify:verify", {
       address,
-      constructorArguments: [],   // RaffleEngine has no constructor args
+      constructorArguments: [],   
     });
     ok("Contract verified on Shannon explorer.");
     console.log(
@@ -202,7 +163,6 @@ async function main() {
   // ── Final summary ──────────────────────────────────────────
 
   const balanceAfter = await ethers.provider.getBalance(deployer.address);
-  // FIX: ethers v6 — native BigInt subtraction
   const gasCost = ethers.formatEther(balanceBefore - balanceAfter);
 
   console.log("\n────────────────────────────────────────────────────────");
@@ -217,10 +177,6 @@ async function main() {
 
   log("Next step: call createCampaign() to start your first raffle.");
 }
-
-// ─────────────────────────────────────────────────────────────
-// Entry point
-// ─────────────────────────────────────────────────────────────
 
 main().catch((err) => {
   fail(`Deploy script crashed: ${err.message}`);

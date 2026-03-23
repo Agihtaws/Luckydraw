@@ -1,4 +1,3 @@
-// src/config/wagmi.js
 import { getDefaultConfig } from "@rainbow-me/rainbowkit";
 import { defineChain }       from "viem";
 

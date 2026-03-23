@@ -1,4 +1,3 @@
-// src/pages/CampaignPage.jsx
 import React, { useState, useRef, useEffect } from "react";
 import { useAccount, useWriteContract, useWaitForTransactionReceipt, useReadContracts, useReadContract } from "wagmi";
 import { formatEther }           from "viem";

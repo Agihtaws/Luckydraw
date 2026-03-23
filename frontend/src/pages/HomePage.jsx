@@ -1,4 +1,3 @@
-// src/pages/HomePage.jsx
 import React, { useState, useMemo } from "react";
 import { useReadContracts }          from "wagmi";
 import { formatEther }               from "viem";

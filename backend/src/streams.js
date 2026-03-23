@@ -1,15 +1,10 @@
-// src/streams.js
-// Publishes raffle events to Somnia Data Streams.
-// Three schemas: round state, entries, winners.
-// Frontend subscribes to these for the live dashboard.
-
 import { SDK, SchemaEncoder, zeroBytes32 } from "@somnia-chain/streams";
 import { toHex } from "viem";
 import { publicHttpClient, getWalletClient } from "./chain.js";
 import "dotenv/config";
-// ─────────────────────────────────────────────────────────────
+
 // Deduplication — prevent same event writing to streams multiple times
-// ─────────────────────────────────────────────────────────────
+
 const seenStreamEvents = new Map();
 
 function isStreamDuplicate(key) {
@@ -23,10 +18,7 @@ function isStreamDuplicate(key) {
   return false;
 }
 
-
-// ─────────────────────────────────────────────────────────────
 // Schema definitions — exact string determines schemaId
-// ─────────────────────────────────────────────────────────────
 
 export const SCHEMAS = {
   // Round lifecycle — open, drawing, complete, rollover
@@ -47,9 +39,9 @@ let schemaIds = {};
 let encoders  = {};
 let initialised = false;
 
-// ─────────────────────────────────────────────────────────────
+
 // Initialise SDK and register schemas (run once at startup)
-// ─────────────────────────────────────────────────────────────
+
 
 export async function initStreams() {
   if (initialised) return;
@@ -85,9 +77,9 @@ export async function initStreams() {
   initialised = true;
 }
 
-// ─────────────────────────────────────────────────────────────
+
 // Publish helpers
-// ─────────────────────────────────────────────────────────────
+
 
 /**
  * Writes a round state record — called when round opens, draws, or completes.

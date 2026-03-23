@@ -1,7 +1,3 @@
-// src/hooks/useCampaign.js
-// Reads campaign + round data from the contract. Polls every 5 seconds
-// to stay fresh — round status changes when _onEvent fires.
-
 import { useState, useEffect, useCallback } from "react";
 import { publicClient, CONTRACT_ADDRESS }  from "../chain.js";
 import { RAFFLE_ABI, ROUND_STATUS }        from "../abi.js";

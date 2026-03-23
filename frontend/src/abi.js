@@ -1,7 +1,3 @@
-// src/abi.js
-// RaffleEngine ABI — only the functions and events the frontend needs.
-// Keeping this minimal avoids bundling the full ABI.
-
 export const RAFFLE_ABI = [
   // ── Read ──────────────────────────────────────────────────
   {

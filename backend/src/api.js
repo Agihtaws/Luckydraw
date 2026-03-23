@@ -1,14 +1,3 @@
-// src/api.js
-// Express API server — runs alongside the reactivity listener.
-// Exposes endpoints for the frontend admin to configure settings.
-//
-// Endpoints:
-//   GET  /api/webhook          → returns current stored webhook URL (masked)
-//   POST /api/webhook          → saves a new webhook URL
-//   DELETE /api/webhook        → clears the webhook URL
-//   POST /api/webhook/test     → sends a test Discord message
-//   GET  /api/health           → health check
-
 import express   from "express";
 import cors      from "cors";
 import fs        from "fs";
@@ -19,9 +8,7 @@ import "dotenv/config";
 const __dirname   = path.dirname(fileURLToPath(import.meta.url));
 const CONFIG_FILE = path.join(__dirname, "..", "webhook-config.json");
 
-// ─────────────────────────────────────────────────────────────
 // Webhook config — persisted to a JSON file so it survives restarts
-// ─────────────────────────────────────────────────────────────
 
 function loadConfig() {
   try {
@@ -44,9 +31,7 @@ export function getWebhookUrl() {
   return config.webhookUrl || "";
 }
 
-// ─────────────────────────────────────────────────────────────
 // Allowed origins — frontend dev + production URL
-// ─────────────────────────────────────────────────────────────
 
 const ALLOWED_ORIGINS = [
   "http://localhost:5173",
@@ -54,11 +39,7 @@ const ALLOWED_ORIGINS = [
   process.env.FRONTEND_URL,
 ].filter(Boolean);
 
-// ─────────────────────────────────────────────────────────────
 // Auth — simple secret key check
-// Frontend must send: Authorization: Bearer <BACKEND_SECRET>
-// Set BACKEND_SECRET in backend .env
-// ─────────────────────────────────────────────────────────────
 
 const BACKEND_SECRET = process.env.BACKEND_SECRET || "";
 
@@ -87,9 +68,7 @@ function maskUrl(url) {
   }
 }
 
-// ─────────────────────────────────────────────────────────────
 // Create Express app
-// ─────────────────────────────────────────────────────────────
 
 export function createApiServer() {
   const app = express();
@@ -118,7 +97,6 @@ export function createApiServer() {
     });
   });
 
-  // ── GET /api/webhook ─────────────────────────────────────
   // Returns masked URL so frontend can show it without exposing the token
 
   app.get("/api/webhook", requireAuth, (req, res) => {
@@ -128,7 +106,6 @@ export function createApiServer() {
     });
   });
 
-  // ── POST /api/webhook ────────────────────────────────────
   // Save a new webhook URL
 
   app.post("/api/webhook", requireAuth, (req, res) => {
@@ -149,7 +126,6 @@ export function createApiServer() {
     res.json({ ok: true, maskedUrl: maskUrl(config.webhookUrl) });
   });
 
-  // ── DELETE /api/webhook ──────────────────────────────────
   // Clear the webhook URL
 
   app.delete("/api/webhook", requireAuth, (req, res) => {
@@ -159,7 +135,6 @@ export function createApiServer() {
     res.json({ ok: true });
   });
 
-  // ── POST /api/webhook/test ───────────────────────────────
   // Send a test Discord message to verify the URL works
 
   app.post("/api/webhook/test", requireAuth, async (req, res) => {

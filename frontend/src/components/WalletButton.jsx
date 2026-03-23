@@ -1,5 +1,3 @@
-// src/components/WalletButton.jsx
-
 import React from "react";
 import { useWallet } from "../hooks/useWallet.js";
 

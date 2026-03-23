@@ -2,18 +2,11 @@
 pragma solidity ^0.8.20;
 
 interface IRaffleEngine {
-
-    // =========================================================
     // Enums
-    // =========================================================
-
     enum RoundStatus { UPCOMING, OPEN, DRAWING, COMPLETE, ROLLEDOVER, CANCELLED }
     enum PrizeMode   { EQUAL, TIERED }
-
-    // =========================================================
+    
     // Structs
-    // =========================================================
-
     struct Campaign {
         uint64    id;
         address   admin;
@@ -52,9 +45,7 @@ interface IRaffleEngine {
         uint8  action;
     }
 
-    // =========================================================
     // Events
-    // =========================================================
 
     event BufferFunded(address indexed funder, uint256 amount, uint256 newTotal);
     event BufferWithdrawn(address indexed owner, uint256 amount);
@@ -135,9 +126,7 @@ interface IRaffleEngine {
     event CampaignCancelled(uint64 indexed campaignId, address indexed admin, uint256 refunded);
     event PoolToppedUp(uint64 indexed campaignId, address indexed admin, uint256 amount, uint256 newRemaining);
 
-    // =========================================================
     // Errors
-    // =========================================================
 
     error NotCampaignAdmin();
     error CampaignDoesNotExist();
@@ -161,9 +150,7 @@ interface IRaffleEngine {
     error NativeTransferFailed();
     error ScheduleCollision();
 
-    // =========================================================
     // Write Functions
-    // =========================================================
 
     function fundBuffer() external payable;
     function withdrawBuffer() external;
@@ -186,9 +173,7 @@ interface IRaffleEngine {
     function emergencyCancel(uint64 campaignId) external;
     function claimFailedPrize() external;
 
-    // =========================================================
     // View Functions
-    // =========================================================
 
     function getCampaign(uint64 campaignId) external view returns (Campaign memory);
     function getCurrentRound(uint64 campaignId) external view returns (Round memory);

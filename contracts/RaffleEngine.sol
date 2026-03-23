@@ -51,7 +51,7 @@ contract RaffleEngine is IRaffleEngine, SomniaEventHandler, ReentrancyGuard, Own
     // Gas params per Somnia documentation (1 nanoSomi = 1 gwei equivalent on Somnia)
     //
     // OPEN handler: single state write + one event — low complexity
-    uint64  private constant PRIORITY_FEE_OPEN = 2_000_000_000;  //  2 gwei (docs minimum: must be >= 2 gwei per debugging guide)
+    uint64  private constant PRIORITY_FEE_OPEN = 2_000_000_000;  //  2 gwei 
     uint64  private constant MAX_FEE_OPEN      = 10_000_000_000;  // 10 gwei
     uint64  private constant GAS_LIMIT_OPEN    = 2_000_000;       //  2M gas
 
@@ -172,11 +172,6 @@ contract RaffleEngine is IRaffleEngine, SomniaEventHandler, ReentrancyGuard, Own
 
         uint256 openMs  = block.timestamp * 1000 + uint256(firstOpenDelayMs);
         uint256 drawMs  = openMs + uint256(entryWindowSecs) * 1000;
-
-        // FIX: first round pool = one round's worth of prizes, NOT the full msg.value.
-        // msg.value may cover multiple rounds (e.g. 10 STT for 5 x 2 STT rounds).
-        // _calcPrizes distributes r.pool equally among winners — passing the full
-        // msg.value would pay the entire multi-round pool to the first winner.
         uint256 stdPool = uint256(numWinners) * prizePerWinner;
         uint64 roundId  = _newRound(campaignId, 1, openMs, drawMs, stdPool, false);
         campaignCurrentRound[campaignId] = roundId;
@@ -247,13 +242,7 @@ contract RaffleEngine is IRaffleEngine, SomniaEventHandler, ReentrancyGuard, Own
         bytes32[] calldata eventTopics,
         bytes     calldata
     ) internal override {
-        // ROOT CAUSE FIX:
-        // Somnia precompile fires _onEvent with the ACTUAL block timestamp in topic[1],
-        // not the exact ms we subscribed with (confirmed: 7ms off in practice).
-        // e.g. we stored at key 1774119166000 but precompile fired with 1774119166007.
-        //
-        // Fix: divide topic[1] by 1000 before lookup (integer division rounds to same second).
-        // We also store pendingActions keyed by (tsMs / 1000) so both sides match exactly.
+
 
         if (eventTopics.length < 2)              return;
         if (eventTopics[0] != SCHEDULE_SELECTOR) return;
@@ -321,7 +310,6 @@ contract RaffleEngine is IRaffleEngine, SomniaEventHandler, ReentrancyGuard, Own
             r.status = RoundStatus.ROLLEDOVER;
 
             if (!c.paused && !c.cancelled) {
-                // FIX 1 (rollover path): guard pool before scheduling next round
                 if (c.remainingPool >= stdPool) {
                     _scheduleNext(campaignId, r, r.pool);
                 } else {
@@ -346,7 +334,6 @@ contract RaffleEngine is IRaffleEngine, SomniaEventHandler, ReentrancyGuard, Own
         );
         uint256[] memory prizes = _calcPrizes(r.pool, c.prizeMode, winners.length);
 
-        // FIX 3: store winners on-chain for getWinners() view
         for (uint256 i = 0; i < winners.length; i++) {
             roundWinners[roundId].push(winners[i]);
         }
@@ -355,13 +342,10 @@ contract RaffleEngine is IRaffleEngine, SomniaEventHandler, ReentrancyGuard, Own
 
         uint256 distributed = _distribute(campaignId, roundId, winners, prizes, r.roundNumber);
 
-        // Deduct the full round pool. Any failed-prize amounts are held in
-        // failedPrizes[] and claimable by winners via claimFailedPrize().
         c.remainingPool    = c.remainingPool >= r.pool ? c.remainingPool - r.pool : 0;
         c.totalDistributed += distributed;
         r.status            = RoundStatus.COMPLETE;
 
-        // FIX 1 (complete path): guard pool and decrement activeCampaignCount on depletion
         if (!c.paused && !c.cancelled) {
             if (c.remainingPool >= stdPool) {
                 _scheduleNext(campaignId, r, 0);
@@ -510,23 +494,13 @@ contract RaffleEngine is IRaffleEngine, SomniaEventHandler, ReentrancyGuard, Own
         Campaign storage c = campaigns[campaignId];
 
         uint256 calculatedOpenMs = (uint256(prev.drawTime) + uint256(c.repeatIntervalSecs)) * 1000;
-
-        // If the campaign was paused for longer than repeatIntervalSecs, the
-        // calculated open time lands in the past. The Somnia precompile requires
-        // all Schedule timestamps to be in the future (minimum ~12 seconds ahead).
-        // We take the later of: the natural cadence time, or now + MIN_FIRST_DELAY_MS.
         uint256 earliestMs = block.timestamp * 1000 + uint256(MIN_FIRST_DELAY_MS);
         uint256 openMs     = calculatedOpenMs > earliestMs ? calculatedOpenMs : earliestMs;
         uint256 drawMs     = openMs + uint256(c.entryWindowSecs) * 1000;
 
         uint256 stdPool = uint256(c.numWinners) * c.prizePerWinner;
-
-        // FIX 2: cap uses remainingPool only.
-        // remainingPool already contains the rollover amount because no prizes
-        // were paid in a rolled-over round, so adding rollover again would
-        // inflate cap beyond what the contract actually holds.
         uint256 nextPool = stdPool + rollover;
-        uint256 cap      = c.remainingPool;       // FIX 2: was `c.remainingPool + rollover`
+        uint256 cap      = c.remainingPool;       
         if (nextPool > cap) nextPool = cap;
 
         uint64 rid = _newRound(
@@ -591,9 +565,7 @@ contract RaffleEngine is IRaffleEngine, SomniaEventHandler, ReentrancyGuard, Own
         uint64  rid,
         uint8   action
     ) private returns (uint64 subId) {
-        // KEY BY SECONDS — precompile fires at actual block ms which may differ
-        // by a few ms from our subscribed ms, but the second is always the same.
-        // Both (storedMs / 1000) and (firedMs / 1000) round to identical key.
+
         uint256 keyTs = tsMs / 1000;
 
         // Collision: two rounds scheduled in the same second — shift by 1 second
@@ -611,17 +583,11 @@ contract RaffleEngine is IRaffleEngine, SomniaEventHandler, ReentrancyGuard, Own
         });
 
         bool isDraw = (action == ACTION_DRAW);
-
-        // Sync subscription ms to the resolved key so _onEvent lookup always matches,
-        // even when keyTs was shifted by 1+ due to a same-second collision.
-        // e.g. if collision moved keyTs from 1774119166 to 1774119167,
-        // we subscribe at 1774119167000 so precompile fires at ~that second,
-        // and _onEvent computes 1774119167xxx / 1000 = 1774119167 — matches.
         uint256 subMs = keyTs * 1000;
 
         bytes32[4] memory topics;
         topics[0] = SCHEDULE_SELECTOR;
-        topics[1] = bytes32(subMs);   // aligned to resolved keyTs, not original tsMs
+        topics[1] = bytes32(subMs);   
         topics[2] = bytes32(0);
         topics[3] = bytes32(0);
 
@@ -704,13 +670,6 @@ contract RaffleEngine is IRaffleEngine, SomniaEventHandler, ReentrancyGuard, Own
 
         c.cancelled = true;
 
-
-        // NOTE: We intentionally do NOT call precompile.unsubscribe() here.
-        // Schedule subscriptions are one-off and auto-delete after firing.
-        // Calling unsubscribe() on an already-consumed subscription reverts
-        // even inside try/catch when the call comes from a precompile context.
-        // If a pending subscription fires after cancel, _onEvent checks
-        // c.cancelled and exits immediately — no state change, no harm.
 
         // Mark round as cancelled if it hasn't drawn yet
         Round storage r = rounds[campaignCurrentRound[campaignId]];

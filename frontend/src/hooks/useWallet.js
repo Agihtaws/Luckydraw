@@ -1,6 +1,3 @@
-// src/hooks/useWallet.js
-// Handles MetaMask connection and Somnia testnet switching.
-
 import { useState, useEffect, useCallback } from "react";
 import { createWalletClient, custom } from "viem";
 import { somniaTestnet } from "../chain.js";
