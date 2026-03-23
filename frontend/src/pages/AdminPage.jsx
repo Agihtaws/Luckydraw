@@ -185,6 +185,48 @@ function WebhookSettings() {
 }
 
 // ─────────────────────────────────────────────────────────────
+// Helper: extract campaignId from receipt logs (multiple strategies)
+// ─────────────────────────────────────────────────────────────
+
+function extractCampaignId(receipt, abi) {
+  // Strategy 1: decodeEventLog with eventName (strict: false for tolerance)
+  for (const log of receipt.logs) {
+    try {
+      const decoded = decodeEventLog({
+        abi, eventName: "CampaignCreated",
+        topics: log.topics, data: log.data,
+        strict: false,
+      });
+      if (decoded?.args?.campaignId !== undefined) {
+        return decoded.args.campaignId.toString();
+      }
+    } catch { /* not this log */ }
+  }
+
+  // Strategy 2: decode any event from ABI and match by name
+  for (const log of receipt.logs) {
+    try {
+      const decoded = decodeEventLog({ abi, topics: log.topics, data: log.data, strict: false });
+      if (decoded?.eventName === "CampaignCreated" && decoded?.args?.campaignId !== undefined) {
+        return decoded.args.campaignId.toString();
+      }
+    } catch { /* skip */ }
+  }
+
+  // Strategy 3: read raw topic[1] as uint256 from our contract's log
+  for (const log of receipt.logs) {
+    if (log.address?.toLowerCase() !== CONTRACT_ADDRESS?.toLowerCase()) continue;
+    if (log.topics?.length >= 2) {
+      try {
+        return BigInt(log.topics[1]).toString();
+      } catch { /* skip */ }
+    }
+  }
+
+  return null;
+}
+
+// ─────────────────────────────────────────────────────────────
 // Create Campaign
 // ─────────────────────────────────────────────────────────────
 
@@ -193,8 +235,10 @@ function CreateCampaignForm({ navigate }) {
     prize: "5", numWinners: "1", entryFee: "0",
     windowMins: "5", scheduleIdx: "5", openIdx: "0",
     prizeMode: "0", cooldown: false,
-    rounds: "1", 
+    rounds: "1",
   });
+
+  const [resolvedId, setResolvedId] = useState(null);
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
@@ -202,19 +246,23 @@ function CreateCampaignForm({ navigate }) {
   const { isLoading: confirming, isSuccess, data: receipt } = useWaitForTransactionReceipt({ hash: txHash });
 
   React.useEffect(() => {
-    if (isSuccess && receipt && navigate) {
-      for (const log of receipt.logs) {
-        try {
-          const decoded = decodeEventLog({ abi: RAFFLE_ABI, eventName: "CampaignCreated", topics: log.topics, data: log.data });
-          if (decoded?.args?.campaignId) {
-            navigate(`/campaign/${decoded.args.campaignId.toString()}`);
-          }
-        } catch { /* skip */ }
-      }
+    if (!isSuccess || !receipt) return;
+
+    const campaignId = extractCampaignId(receipt, RAFFLE_ABI);
+
+    if (campaignId) {
+      setResolvedId(campaignId);
+      setTimeout(() => {
+        if (typeof navigate === "function") {
+          navigate(`/campaign/${campaignId}`);
+        } else {
+          window.history.pushState({}, "", `/campaign/${campaignId}`);
+          window.dispatchEvent(new Event("popstate"));
+        }
+      }, 100);
     }
   }, [isSuccess, receipt]);
 
-  // Total = prize × winners × rounds
   const totalPool = () => {
     try {
       return (parseFloat(form.prize || 0) * parseInt(form.numWinners || 1) * parseInt(form.rounds || 1)).toFixed(4);
@@ -234,7 +282,6 @@ function CreateCampaignForm({ navigate }) {
       address: CONTRACT_ADDRESS, abi: RAFFLE_ABI,
       functionName: "createCampaign",
       args: [Number(form.numWinners), prizeWei, feeWei, BigInt(windowSecs), BigInt(repeatSecs), Number(form.prizeMode), form.cooldown, BigInt(openMs)],
-      // Fund multiple rounds at once
       value: prizeWei * BigInt(form.numWinners) * BigInt(rounds),
     });
   };
@@ -327,26 +374,48 @@ function CreateCampaignForm({ navigate }) {
       </button>
 
       {errMsg && <p className="text-sm text-center" style={{ color: "var(--red)" }}>{errMsg}</p>}
+
       {isSuccess && txHash && (
-  <div className="text-center">
-    <a href={`${EXPLORER}/tx/${txHash}`} target="_blank" rel="noreferrer"
-      className="text-xs underline" style={{ color: "var(--muted2)" }}>
-      View transaction →
-    </a>
-  </div>
-)}
+        <div className="text-center">
+          <a href={`${EXPLORER}/tx/${txHash}`} target="_blank" rel="noreferrer"
+            className="text-xs underline" style={{ color: "var(--muted2)" }}>
+            View transaction →
+          </a>
+        </div>
+      )}
+
+      {/* Fallback manual link if redirect doesn't fire */}
+      {resolvedId && (
+        <div className="rounded-xl p-4 text-center space-y-2"
+          style={{ background: "var(--surface2)", border: "1px solid var(--teal)" }}>
+          <p className="text-sm font-semibold" style={{ color: "var(--teal)" }}>
+            ✓ Campaign #{resolvedId} created!
+          </p>
+          <p className="text-xs" style={{ color: "var(--muted)" }}>
+            Redirecting… if nothing happens,{" "}
+            <button
+              onClick={() => {
+                if (typeof navigate === "function") {
+                  navigate(`/campaign/${resolvedId}`);
+                } else {
+                  window.history.pushState({}, "", `/campaign/${resolvedId}`);
+                  window.dispatchEvent(new Event("popstate"));
+                }
+              }}
+              className="underline font-semibold"
+              style={{ color: "var(--purple)", background: "none", border: "none", cursor: "pointer" }}>
+              click here
+            </button>
+            {" "}to go to Campaign #{resolvedId}.
+          </p>
+        </div>
+      )}
     </Section>
   );
 }
 
 // ─────────────────────────────────────────────────────────────
 // Top Up Pool
-// How it works:
-//   1. Enter the campaign ID
-//   2. Enter how many extra rounds to fund (auto-calculates STT)
-//   3. Click Top Up → MetaMask → confirms → pool increases
-//   The contract adds the amount to remainingPool and the raffle
-//   keeps running for more rounds automatically.
 // ─────────────────────────────────────────────────────────────
 
 function TopUpPool() {
@@ -368,7 +437,6 @@ function TopUpPool() {
     if (isSuccess) refetch();
   }, [isSuccess]);
 
-  // Calculate top-up amount = prizePerWinner × numWinners × extraRounds
   const topUpAmount = () => {
     if (!campaign || !extraRounds) return "0";
     try {
@@ -411,7 +479,6 @@ function TopUpPool() {
         </Field>
       </div>
 
-      {/* Campaign preview */}
       {campaign && validId && (
         <div className="rounded-xl p-4 text-sm space-y-2"
           style={{ background: "var(--surface2)", border: "1px solid var(--border)" }}>
