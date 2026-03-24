@@ -106,7 +106,7 @@ function SummaryRow({ label, value, valueStyle }) {
 // Webhook settings
 // ─────────────────────────────────────────────────────────────
 
-const API    = import.meta.env.VITE_BACKEND_URL    || "http://localhost:3001";
+const API    = import.meta.env.VITE_BACKEND_URL    || "https://luckydraw-yi25.onrender.com";
 const SECRET = import.meta.env.VITE_BACKEND_SECRET || "";
 
 function apiHeaders() {

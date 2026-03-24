@@ -7,7 +7,7 @@ const path = require("path");
 // CONFIG
 // ─────────────────────────────────────────────────────────────
 
-const CAMPAIGN_ID   = 4n;       // ← update to your campaign ID
+const CAMPAIGN_ID   = 10n;       // ← update to your campaign ID
 const POLL_INTERVAL = 3_000;
 const POLL_TIMEOUT  = 600_000;
 
@@ -36,7 +36,7 @@ function loadDeployed() {
 function loadWallets() {
   // Supports up to 6 wallets — add PRIVATE_KEY_4/5/6 to .env for more entries
   const keys = [
-    process.env.PRIVATE_KEY,    // wallet 1 — deployer (will be blocked if admin)
+    process.env.PRIVATE_KEY_1,    // wallet 1 — deployer (will be blocked if admin)
     process.env.PRIVATE_KEY_2,
     process.env.PRIVATE_KEY_3,
     process.env.PRIVATE_KEY_4,

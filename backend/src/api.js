@@ -36,7 +36,7 @@ export function getWebhookUrl() {
 const ALLOWED_ORIGINS = [
   "http://localhost:5173",
   "http://localhost:4173",
-  process.env.FRONTEND_URL,
+  process.env.FRONTEND_URL || "https://luckydraw-2ddz.vercel.app",
 ].filter(Boolean);
 
 // Auth — simple secret key check
