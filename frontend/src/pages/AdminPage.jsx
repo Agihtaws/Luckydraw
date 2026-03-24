@@ -31,15 +31,28 @@ const OPEN_IN = [
 ];
 
 // ─────────────────────────────────────────────────────────────
-// Shared UI primitives
+// Shared UI primitives — styled to match CampaignPage/HistoryPage
 // ─────────────────────────────────────────────────────────────
 
-function Section({ title, children }) {
+/**
+ * Section card — header row with border-bottom (mirrors CampaignPage card pattern)
+ */
+function Section({ title, icon, children }) {
   return (
-    <div className="rounded-2xl p-5 sm:p-6 space-y-5"
+    <div className="rounded-2xl overflow-hidden"
       style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
-      <h2 className="text-base font-semibold" style={{ color: "var(--muted2)" }}>{title}</h2>
-      {children}
+
+      {/* Card header — same px-5 py-4 + borderBottom as CampaignPage */}
+      <div className="px-5 py-4 flex items-center gap-2"
+        style={{ borderBottom: "1px solid var(--border)", background: "var(--surface2)" }}>
+        {icon && <span className="text-base">{icon}</span>}
+        <h2 className="font-semibold text-sm" style={{ color: "var(--muted2)" }}>{title}</h2>
+      </div>
+
+      {/* Card body */}
+      <div className="px-5 py-5 space-y-5">
+        {children}
+      </div>
     </div>
   );
 }
@@ -61,10 +74,10 @@ const inputStyle = {
   color: "var(--text)",
 };
 
-function Input({ value, onChange, type = "text", min, step, placeholder }) {
+function Input({ value, onChange, type = "text", min, max, step, placeholder }) {
   return (
     <input type={type} value={value} onChange={onChange}
-      min={min} step={step} placeholder={placeholder}
+      min={min} max={max} step={step} placeholder={placeholder}
       className={inputCls} style={inputStyle} />
   );
 }
@@ -76,6 +89,16 @@ function Select({ value, onChange, options }) {
         <option key={i} value={i}>{o.label}</option>
       ))}
     </select>
+  );
+}
+
+/** Inline summary row — matches the "flex justify-between" pattern from CampaignPage winners card */
+function SummaryRow({ label, value, valueStyle }) {
+  return (
+    <div className="flex justify-between items-center text-sm">
+      <span style={{ color: "var(--muted2)" }}>{label}</span>
+      <span className="font-semibold font-num" style={valueStyle}>{value}</span>
+    </div>
   );
 }
 
@@ -140,18 +163,25 @@ function WebhookSettings() {
   };
 
   return (
-    <Section title="Discord Announcements">
-      <div className="rounded-xl p-4 flex items-center justify-between"
+    <Section title="Discord Announcements" icon="🔔">
+
+      {/* Current webhook status row — mirrors EntrantsList header row style */}
+      <div className="rounded-xl p-4 flex items-center justify-between gap-3"
         style={{ background: "var(--surface2)", border: "1px solid var(--border)" }}>
-        <div>
-          <p className="text-xs font-semibold mb-0.5" style={{ color: "var(--muted)" }}>Current webhook (backend)</p>
-          <p className="text-sm font-mono">
-            {current || <span style={{ color: "var(--muted)" }}>Not configured</span>}
+        <div className="min-w-0">
+          <p className="text-xs font-semibold mb-1" style={{ color: "var(--muted)" }}>
+            Current webhook (backend)
+          </p>
+          <p className="text-sm font-mono truncate">
+            {current
+              ? <span style={{ color: "var(--text)" }}>{current}</span>
+              : <span style={{ color: "var(--muted)" }}>Not configured</span>}
           </p>
         </div>
         {current && (
-          <button onClick={clear} className="text-xs px-2 py-1 rounded-lg"
-            style={{ color: "var(--red)", border: "1px solid var(--red-dim)" }}>
+          <button onClick={clear}
+            className="shrink-0 text-xs px-3 py-1.5 rounded-lg font-semibold transition-colors"
+            style={{ color: "var(--red)", border: "1px solid rgba(239,68,68,0.3)", background: "rgba(239,68,68,0.08)" }}>
             Clear
           </button>
         )}
@@ -165,18 +195,23 @@ function WebhookSettings() {
 
       <div className="flex gap-3 flex-wrap">
         <button onClick={save} disabled={saving || !url.trim()}
-          className="px-4 py-2 rounded-xl text-sm font-semibold"
+          className="px-4 py-2 rounded-xl text-sm font-semibold transition-all"
           style={{ background: "var(--purple)", color: "#fff", opacity: saving || !url.trim() ? 0.6 : 1 }}>
           {saving ? "Saving…" : "Save to backend"}
         </button>
         <button onClick={test} disabled={testing || !current}
-          className="px-4 py-2 rounded-xl text-sm font-semibold"
+          className="px-4 py-2 rounded-xl text-sm font-semibold transition-all"
           style={{ background: "var(--surface2)", color: "var(--muted2)", border: "1px solid var(--border)", opacity: testing || !current ? 0.6 : 1 }}>
           {testing ? "Testing…" : "Test webhook"}
         </button>
       </div>
 
-      {result && <p className="text-sm font-medium" style={{ color: result.ok ? "var(--teal)" : "var(--red)" }}>{result.message}</p>}
+      {result && (
+        <p className="text-sm font-medium" style={{ color: result.ok ? "var(--teal)" : "var(--red)" }}>
+          {result.message}
+        </p>
+      )}
+
       <p className="text-xs" style={{ color: "var(--muted)" }}>
         Stored in the backend server — persists across restarts. Discord messages post 24/7.
       </p>
@@ -185,44 +220,29 @@ function WebhookSettings() {
 }
 
 // ─────────────────────────────────────────────────────────────
-// Helper: extract campaignId from receipt logs (multiple strategies)
+// Helper: extract campaignId from receipt logs
 // ─────────────────────────────────────────────────────────────
 
 function extractCampaignId(receipt, abi) {
-  // Strategy 1: decodeEventLog with eventName (strict: false for tolerance)
   for (const log of receipt.logs) {
     try {
-      const decoded = decodeEventLog({
-        abi, eventName: "CampaignCreated",
-        topics: log.topics, data: log.data,
-        strict: false,
-      });
-      if (decoded?.args?.campaignId !== undefined) {
-        return decoded.args.campaignId.toString();
-      }
+      const decoded = decodeEventLog({ abi, eventName: "CampaignCreated", topics: log.topics, data: log.data, strict: false });
+      if (decoded?.args?.campaignId !== undefined) return decoded.args.campaignId.toString();
     } catch { /* not this log */ }
   }
-
-  // Strategy 2: decode any event from ABI and match by name
   for (const log of receipt.logs) {
     try {
       const decoded = decodeEventLog({ abi, topics: log.topics, data: log.data, strict: false });
-      if (decoded?.eventName === "CampaignCreated" && decoded?.args?.campaignId !== undefined) {
+      if (decoded?.eventName === "CampaignCreated" && decoded?.args?.campaignId !== undefined)
         return decoded.args.campaignId.toString();
-      }
     } catch { /* skip */ }
   }
-
-  // Strategy 3: read raw topic[1] as uint256 from our contract's log
   for (const log of receipt.logs) {
     if (log.address?.toLowerCase() !== CONTRACT_ADDRESS?.toLowerCase()) continue;
     if (log.topics?.length >= 2) {
-      try {
-        return BigInt(log.topics[1]).toString();
-      } catch { /* skip */ }
+      try { return BigInt(log.topics[1]).toString(); } catch { /* skip */ }
     }
   }
-
   return null;
 }
 
@@ -239,7 +259,6 @@ function CreateCampaignForm({ navigate }) {
   });
 
   const [resolvedId, setResolvedId] = useState(null);
-
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
   const { writeContract, data: txHash, isPending, error: writeErr } = useWriteContract();
@@ -247,9 +266,7 @@ function CreateCampaignForm({ navigate }) {
 
   React.useEffect(() => {
     if (!isSuccess || !receipt) return;
-
     const campaignId = extractCampaignId(receipt, RAFFLE_ABI);
-
     if (campaignId) {
       setResolvedId(campaignId);
       setTimeout(() => {
@@ -277,7 +294,6 @@ function CreateCampaignForm({ navigate }) {
     const openMs     = OPEN_IN[Number(form.openIdx)].ms;
     const repeatSecs = sched.secs === 0 ? windowSecs + 60 : Math.max(sched.secs, windowSecs + 60);
     const rounds     = Math.max(1, parseInt(form.rounds || 1));
-
     writeContract({
       address: CONTRACT_ADDRESS, abi: RAFFLE_ABI,
       functionName: "createCampaign",
@@ -289,43 +305,36 @@ function CreateCampaignForm({ navigate }) {
   const errMsg = writeErr?.shortMessage || writeErr?.message;
 
   return (
-    <Section title="Create Campaign">
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+    <Section title="Create Campaign" icon="🎟️">
 
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
         <Field label="Prize per winner (STT)">
           <Input type="number" min="0" step="0.1" value={form.prize}
             onChange={e => set("prize", e.target.value)} />
         </Field>
-
         <Field label="Winners per round" hint="Max 10">
           <Input type="number" min="1" max="10" value={form.numWinners}
             onChange={e => set("numWinners", e.target.value)} />
         </Field>
-
         <Field label="Entry window" hint="How long entries are open">
           <Input type="number" min="1" value={form.windowMins}
             onChange={e => set("windowMins", e.target.value)} placeholder="minutes" />
         </Field>
-
         <Field label="Entry fee (STT)" hint="0 = free entry">
           <Input type="number" min="0" step="0.01" value={form.entryFee}
             onChange={e => set("entryFee", e.target.value)} />
         </Field>
-
         <Field label="First round opens">
           <Select value={form.openIdx} onChange={e => set("openIdx", e.target.value)} options={OPEN_IN} />
         </Field>
-
         <Field label="Schedule (repeats)">
           <Select value={form.scheduleIdx} onChange={e => set("scheduleIdx", e.target.value)} options={SCHEDULES} />
         </Field>
-
         <Field label="Number of rounds to fund"
           hint={`Funds ${form.rounds || 1} round${form.rounds > 1 ? "s" : ""} upfront. Add more anytime via Top Up.`}>
           <Input type="number" min="1" max="100" value={form.rounds}
             onChange={e => set("rounds", e.target.value)} placeholder="e.g. 10" />
         </Field>
-
       </div>
 
       <Field label="Prize distribution">
@@ -346,30 +355,28 @@ function CreateCampaignForm({ navigate }) {
         Previous winner cannot win again next round
       </label>
 
-      {/* Summary */}
-      <div className="rounded-xl p-4 space-y-2 text-sm"
+      {/* Summary — mirrors the prize/stats card from CampaignPage */}
+      <div className="rounded-xl overflow-hidden"
         style={{ background: "var(--surface2)", border: "1px solid var(--border)" }}>
-        <div className="flex justify-between">
-          <span style={{ color: "var(--muted2)" }}>Total STT to lock:</span>
-          <span className="font-bold font-num" style={{ color: "var(--amber)" }}>{totalPool()} STT</span>
+        <div className="px-4 py-2.5" style={{ borderBottom: "1px solid var(--border)" }}>
+          <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: "var(--muted)" }}>
+            Summary
+          </p>
         </div>
-        <div className="flex justify-between">
-          <span style={{ color: "var(--muted2)" }}>Rounds funded:</span>
-          <span>{form.rounds || 1} round{form.rounds > 1 ? "s" : ""}</span>
-        </div>
-        <div className="flex justify-between">
-          <span style={{ color: "var(--muted2)" }}>Schedule:</span>
-          <span>{SCHEDULES[Number(form.scheduleIdx)]?.label}</span>
-        </div>
-        <div className="flex justify-between">
-          <span style={{ color: "var(--muted2)" }}>Opens:</span>
-          <span>{OPEN_IN[Number(form.openIdx)]?.label}</span>
+        <div className="px-4 py-3 space-y-2">
+          <SummaryRow label="Total STT to lock" value={`${totalPool()} STT`} valueStyle={{ color: "var(--amber)" }} />
+          <SummaryRow label="Rounds funded" value={`${form.rounds || 1} round${form.rounds > 1 ? "s" : ""}`} />
+          <SummaryRow label="Schedule" value={SCHEDULES[Number(form.scheduleIdx)]?.label} />
+          <SummaryRow label="Opens" value={OPEN_IN[Number(form.openIdx)]?.label} />
         </div>
       </div>
 
       <button onClick={submit} disabled={isPending || confirming}
         className="w-full py-4 rounded-2xl font-bold text-lg transition-all"
-        style={{ background: isPending || confirming ? "var(--border)" : "var(--purple)", color: "#fff", opacity: isPending || confirming ? 0.7 : 1 }}>
+        style={{
+          background: isPending || confirming ? "var(--border)" : "var(--purple)",
+          color: "#fff", opacity: isPending || confirming ? 0.7 : 1,
+        }}>
         {isPending ? "Confirm in wallet…" : confirming ? "Creating…" : `Create & fund ${totalPool()} STT`}
       </button>
 
@@ -384,14 +391,15 @@ function CreateCampaignForm({ navigate }) {
         </div>
       )}
 
-      {/* Fallback manual link if redirect doesn't fire */}
+      {/* Success banner — mirrors the "You won!" banner from CampaignPage */}
       {resolvedId && (
-        <div className="rounded-xl p-4 text-center space-y-2"
-          style={{ background: "var(--surface2)", border: "1px solid var(--teal)" }}>
-          <p className="text-sm font-semibold" style={{ color: "var(--teal)" }}>
-            ✓ Campaign #{resolvedId} created!
+        <div className="rounded-2xl p-5 text-center"
+          style={{ background: "rgba(16,185,129,0.1)", border: "2px solid var(--teal)" }}>
+          <div className="text-3xl mb-2">🎉</div>
+          <p className="text-lg font-bold" style={{ color: "var(--teal)" }}>
+            Campaign #{resolvedId} created!
           </p>
-          <p className="text-xs" style={{ color: "var(--muted)" }}>
+          <p className="text-sm mt-1" style={{ color: "var(--muted2)" }}>
             Redirecting… if nothing happens,{" "}
             <button
               onClick={() => {
@@ -441,8 +449,7 @@ function TopUpPool() {
     if (!campaign || !extraRounds) return "0";
     try {
       const perRound = campaign.prizePerWinner * BigInt(campaign.numWinners);
-      const total    = perRound * BigInt(parseInt(extraRounds) || 1);
-      return formatEther(total);
+      return formatEther(perRound * BigInt(parseInt(extraRounds) || 1));
     } catch { return "0"; }
   };
 
@@ -458,11 +465,17 @@ function TopUpPool() {
     });
   };
 
-  const errMsg = writeErr?.shortMessage || writeErr?.message;
+  const errMsg  = writeErr?.shortMessage || writeErr?.message;
   const canTopUp = campaign && !campaign.cancelled && validId;
 
+  const poolStatus = campaign
+    ? campaign.cancelled ? { label: "Cancelled", color: "var(--red)" }
+    : campaign.remainingPool > 0n ? { label: "Active", color: "var(--teal)" }
+    : { label: "Depleted", color: "var(--muted)" }
+    : null;
+
   return (
-    <Section title="Top Up Pool">
+    <Section title="Top Up Pool" icon="⛽">
       <p className="text-sm" style={{ color: "var(--muted2)" }}>
         Add more rounds to a running campaign. The raffle continues automatically after the current pool runs out.
       </p>
@@ -472,7 +485,6 @@ function TopUpPool() {
           <Input type="number" min="1" value={topUpId}
             onChange={e => setTopUpId(e.target.value)} placeholder="e.g. 13" />
         </Field>
-
         <Field label="Extra rounds to fund" hint="How many more rounds to add">
           <Input type="number" min="1" max="100" value={extraRounds}
             onChange={e => setExtraRounds(e.target.value)} placeholder="e.g. 5" />
@@ -480,32 +492,35 @@ function TopUpPool() {
       </div>
 
       {campaign && validId && (
-        <div className="rounded-xl p-4 text-sm space-y-2"
+        <div className="rounded-xl overflow-hidden"
           style={{ background: "var(--surface2)", border: "1px solid var(--border)" }}>
-          <div className="flex justify-between">
-            <span style={{ color: "var(--muted2)" }}>Campaign #{topUpId}</span>
-            <span style={{ color: campaign.cancelled ? "var(--red)" : campaign.remainingPool > 0n ? "var(--teal)" : "var(--muted)" }}>
-              {campaign.cancelled ? "Cancelled" : campaign.remainingPool > 0n ? "Active" : "Depleted"}
+          <div className="px-4 py-2.5 flex items-center justify-between"
+            style={{ borderBottom: "1px solid var(--border)" }}>
+            <span className="text-xs font-semibold" style={{ color: "var(--muted)" }}>
+              Campaign #{topUpId}
             </span>
+            {poolStatus && (
+              <span className="text-xs font-semibold px-2 py-0.5 rounded-full"
+                style={{
+                  color: poolStatus.color,
+                  background: poolStatus.color === "var(--teal)"
+                    ? "var(--teal-dim)"
+                    : "rgba(113,113,122,0.15)",
+                }}>
+                {poolStatus.label}
+              </span>
+            )}
           </div>
-          <div className="flex justify-between">
-            <span style={{ color: "var(--muted2)" }}>Current pool</span>
-            <span className="font-num font-semibold">{formatEther(campaign.remainingPool)} STT</span>
+          <div className="px-4 py-3 space-y-2">
+            <SummaryRow label="Current pool" value={`${formatEther(campaign.remainingPool)} STT`} />
+            <SummaryRow label="Prize per round" value={`${formatEther(campaign.prizePerWinner * BigInt(campaign.numWinners))} STT`} />
+            <div style={{ borderTop: "1px solid var(--border)", paddingTop: 8, marginTop: 4 }}>
+              <SummaryRow label="Top-up amount" value={`${topUpAmount()} STT`} valueStyle={{ color: "var(--amber)" }} />
+            </div>
+            <p className="text-xs" style={{ color: "var(--muted)" }}>
+              After top-up: ~{(parseFloat(formatEther(campaign.remainingPool)) + parseFloat(topUpAmount())).toFixed(4)} STT total
+            </p>
           </div>
-          <div className="flex justify-between">
-            <span style={{ color: "var(--muted2)" }}>Prize per round</span>
-            <span className="font-num">{formatEther(campaign.prizePerWinner * BigInt(campaign.numWinners))} STT</span>
-          </div>
-          <div className="flex justify-between font-semibold"
-            style={{ borderTop: "1px solid var(--border)", paddingTop: 8, marginTop: 4 }}>
-            <span style={{ color: "var(--muted2)" }}>Top-up amount</span>
-            <span style={{ color: "var(--amber)" }}>{topUpAmount()} STT</span>
-          </div>
-          <p className="text-xs" style={{ color: "var(--muted)" }}>
-            After top-up: {campaign && extraRounds
-              ? `~${(parseFloat(formatEther(campaign.remainingPool)) + parseFloat(topUpAmount())).toFixed(4)} STT total`
-              : "—"}
-          </p>
         </div>
       )}
 
@@ -532,8 +547,8 @@ function TopUpPool() {
 // ─────────────────────────────────────────────────────────────
 
 function CancelCampaigns() {
-  const [cancelId,   setCancelId]   = useState("");
-  const [confirming, setConfirming] = useState(false);
+  const [cancelId,      setCancelId]      = useState("");
+  const [confirmingUI,  setConfirmingUI]  = useState(false);
 
   const { writeContract, data: cancelTxHash, isPending: isCancelling, error: cancelErr } = useWriteContract();
   const { isLoading: waitingCancel, isSuccess: cancelSuccess } = useWaitForTransactionReceipt({ hash: cancelTxHash });
@@ -547,7 +562,7 @@ function CancelCampaigns() {
   });
 
   React.useEffect(() => {
-    if (cancelSuccess) { setConfirming(false); refetch(); }
+    if (cancelSuccess) { setConfirmingUI(false); refetch(); }
   }, [cancelSuccess]);
 
   const handleCancel = () => {
@@ -562,70 +577,65 @@ function CancelCampaigns() {
   const isActive = campaign && !campaign.cancelled && campaign.remainingPool > 0n;
 
   return (
-    <Section title="Stop a Campaign">
+    <Section title="Stop a Campaign" icon="🛑">
       <p className="text-sm" style={{ color: "var(--muted2)" }}>
         Emergency cancel stops all future rounds and refunds the remaining pool to your wallet.
       </p>
 
       <Field label="Campaign ID" hint="Find it in the URL — /campaign/13">
         <Input type="number" min="1" value={cancelId}
-          onChange={e => { setCancelId(e.target.value); setConfirming(false); }}
+          onChange={e => { setCancelId(e.target.value); setConfirmingUI(false); }}
           placeholder="e.g. 13" />
       </Field>
 
       {campaign && validId && (
-        <div className="rounded-xl p-4 text-sm space-y-1"
-          style={{ background: "var(--surface2)", border: `1px solid ${campaign.cancelled ? "var(--border)" : "var(--red-dim)"}` }}>
-          {campaign.cancelled ? (
-            <div className="flex items-center justify-between">
-              <p style={{ color: "var(--muted)" }}>Campaign #{cancelId}</p>
-              <span className="text-xs px-2 py-0.5 rounded-full font-semibold"
-                style={{ background: "rgba(16,185,129,0.15)", color: "var(--teal)" }}>
-                ✓ Cancelled
-              </span>
+        <div className="rounded-xl overflow-hidden"
+          style={{ background: "var(--surface2)", border: `1px solid ${campaign.cancelled ? "var(--border)" : "rgba(239,68,68,0.3)"}` }}>
+          <div className="px-4 py-2.5 flex items-center justify-between"
+            style={{ borderBottom: "1px solid var(--border)" }}>
+            <span className="text-xs font-semibold" style={{ color: "var(--muted)" }}>
+              Campaign #{cancelId}
+            </span>
+            <span className="text-xs font-semibold px-2 py-0.5 rounded-full"
+              style={campaign.cancelled
+                ? { background: "var(--teal-dim)", color: "var(--teal)" }
+                : isActive
+                  ? { background: "rgba(239,68,68,0.12)", color: "var(--red)" }
+                  : { background: "rgba(113,113,122,0.15)", color: "var(--muted)" }
+              }>
+              {campaign.cancelled ? "✓ Cancelled" : isActive ? "Active" : "Ended"}
+            </span>
+          </div>
+          {!campaign.cancelled && (
+            <div className="px-4 py-3 space-y-2">
+              <SummaryRow label="Will refund" value={`${formatEther(campaign.remainingPool)} STT`} valueStyle={{ color: "var(--amber)" }} />
+              <SummaryRow label="Rounds run" value={campaign.totalRoundsRun.toString()} />
             </div>
-          ) : (
-            <>
-              <div className="flex justify-between">
-                <span style={{ color: "var(--muted2)" }}>Campaign #{cancelId}</span>
-                <span style={{ color: isActive ? "var(--teal)" : "var(--muted)" }}>
-                  {isActive ? "Active" : "Ended"}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span style={{ color: "var(--muted2)" }}>Will refund</span>
-                <span className="font-num font-semibold" style={{ color: "var(--amber)" }}>
-                  {formatEther(campaign.remainingPool)} STT
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span style={{ color: "var(--muted2)" }}>Rounds run</span>
-                <span>{campaign.totalRoundsRun.toString()}</span>
-              </div>
-            </>
           )}
         </div>
       )}
 
-      {campaign && !campaign.cancelled && isActive && !confirming && (
-        <button onClick={() => setConfirming(true)}
-          className="w-full py-3 rounded-xl font-semibold text-sm"
-          style={{ background: "var(--red-dim)", color: "var(--red)", border: "1px solid var(--red)" }}>
+      {campaign && !campaign.cancelled && isActive && !confirmingUI && (
+        <button onClick={() => setConfirmingUI(true)}
+          className="w-full py-3 rounded-xl font-semibold text-sm transition-all"
+          style={{ background: "rgba(239,68,68,0.08)", color: "var(--red)", border: "1px solid rgba(239,68,68,0.4)" }}>
           Stop Campaign #{cancelId}
         </button>
       )}
 
-      {confirming && (
+      {/* Confirm prompt — mirrors the "Are you sure?" pattern */}
+      {confirmingUI && (
         <div className="space-y-3">
-          <div className="rounded-xl p-4 text-sm text-center"
-            style={{ background: "rgba(239,68,68,0.1)", border: "1px solid var(--red)" }}>
+          <div className="rounded-2xl p-5 text-center"
+            style={{ background: "rgba(239,68,68,0.08)", border: "2px solid var(--red)" }}>
+            <div className="text-3xl mb-2">⚠️</div>
             <p className="font-semibold mb-1" style={{ color: "var(--red)" }}>Are you sure?</p>
-            <p style={{ color: "var(--muted2)" }}>
-              This refunds <strong>{campaign ? formatEther(campaign.remainingPool) : "?"} STT</strong> to your wallet. Cannot be undone.
+            <p className="text-sm" style={{ color: "var(--muted2)" }}>
+              This refunds <strong>{campaign ? formatEther(campaign.remainingPool) : "?"} STT</strong> to your wallet and cannot be undone.
             </p>
           </div>
           <div className="flex gap-3">
-            <button onClick={() => setConfirming(false)}
+            <button onClick={() => setConfirmingUI(false)}
               className="flex-1 py-3 rounded-xl font-semibold text-sm"
               style={{ background: "var(--surface2)", color: "var(--muted2)", border: "1px solid var(--border)" }}>
               Keep running
@@ -639,7 +649,11 @@ function CancelCampaigns() {
         </div>
       )}
 
-      {cancelErr && <p className="text-sm" style={{ color: "var(--red)" }}>{cancelErr?.shortMessage || cancelErr?.message}</p>}
+      {cancelErr && (
+        <p className="text-sm" style={{ color: "var(--red)" }}>
+          {cancelErr?.shortMessage || cancelErr?.message}
+        </p>
+      )}
       {cancelSuccess && (
         <p className="text-sm font-semibold" style={{ color: "var(--teal)" }}>
           ✓ Campaign #{cancelId} cancelled. Pool refunded to your wallet.
@@ -659,35 +673,51 @@ export default function AdminPage({ navigate }) {
   const isAdmin = isConnected && DEPLOYER_ADDRESS &&
     address?.toLowerCase() === DEPLOYER_ADDRESS.toLowerCase();
 
+  /* ── Not connected ── */
   if (!isConnected) return (
     <div className="min-h-screen flex flex-col items-center justify-center gap-4 text-center px-4">
       <div className="text-5xl">🔐</div>
-      <h2 className="text-xl font-bold">Connect your wallet</h2>
+      <h2 className="text-2xl font-bold" style={{ fontFamily: "'Syne', sans-serif" }}>
+        Connect your wallet
+      </h2>
       <p style={{ color: "var(--muted2)" }}>Admin access requires wallet connection.</p>
     </div>
   );
 
+  /* ── Wrong wallet ── */
   if (!isAdmin) return (
     <div className="min-h-screen flex flex-col items-center justify-center gap-4 text-center px-4">
       <div className="text-5xl">⛔</div>
-      <h2 className="text-xl font-bold">Access denied</h2>
+      <h2 className="text-2xl font-bold" style={{ fontFamily: "'Syne', sans-serif" }}>
+        Access denied
+      </h2>
       <p style={{ color: "var(--muted2)" }}>Only the contract deployer can access this page.</p>
-      <p className="text-xs font-mono px-3 py-1.5 rounded-lg"
-        style={{ background: "var(--surface)", color: "var(--muted)" }}>
+      <p className="text-xs font-mono px-3 py-1.5 rounded-lg mt-2"
+        style={{ background: "var(--surface)", color: "var(--muted)", border: "1px solid var(--border)" }}>
         Connected: {address}
       </p>
     </div>
   );
 
+  /* ── Admin panel ── */
   return (
     <div className="max-w-2xl mx-auto px-4 sm:px-6 py-10 space-y-6">
 
-      <div className="flex items-center gap-3">
-        <h1 className="text-2xl font-bold">Admin</h1>
-        <span className="text-xs px-2 py-1 rounded-full font-semibold"
-          style={{ background: "var(--purple-dim)", color: "var(--purple)" }}>
-          Deployer
-        </span>
+      {/* Page header — matches HistoryPage header pattern */}
+      <div>
+        <div className="flex items-center gap-3 mb-1">
+          <h1 className="text-3xl font-bold" style={{ fontFamily: "'Syne', sans-serif" }}>
+            Admin
+          </h1>
+          {/* Deployer badge — mirrors StatusBadge / campaign chip pattern */}
+          <span className="text-xs px-2 py-1 rounded-full font-semibold"
+            style={{ background: "var(--purple-dim)", color: "var(--purple)" }}>
+            Deployer
+          </span>
+        </div>
+        <p className="text-sm" style={{ color: "var(--muted2)" }}>
+          Manage campaigns, top up pools, and configure announcements.
+        </p>
       </div>
 
       <WebhookSettings />
