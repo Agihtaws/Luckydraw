@@ -106,7 +106,7 @@ function SummaryRow({ label, value, valueStyle }) {
 // Webhook settings
 // ─────────────────────────────────────────────────────────────
 
-const API    = import.meta.env.VITE_BACKEND_URL    || "https://luckydraw-yi25.onrender.com";
+const API    = import.meta.env.VITE_BACKEND_URL    || "";
 const SECRET = import.meta.env.VITE_BACKEND_SECRET || "";
 
 function apiHeaders() {
