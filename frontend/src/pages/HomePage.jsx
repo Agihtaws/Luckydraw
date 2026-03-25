@@ -22,7 +22,7 @@ export default function HomePage({ onSelect }) {
   const { data: count } = useCampaignCount();
   const total = count ? Number(count) : 0;
 
-  // Fetch all campaigns
+  // Fetch all campaigns — include cancelled ones (we show them in Ended tab)
   const campaignContracts = useMemo(() =>
     Array.from({ length: total }, (_, i) => ({
       address: CONTRACT_ADDRESS, abi: RAFFLE_ABI,
@@ -35,8 +35,9 @@ export default function HomePage({ onSelect }) {
     query: { enabled: total > 0, refetchInterval: 10_000 },
   });
 
+  // FIX 1: Remove !c.cancelled filter — cancelled campaigns belong in "Ended" tab
   const campaigns = useMemo(() =>
-    (rawCampaigns || []).map(r => r.result).filter(Boolean).filter(c => !c.cancelled),
+    (rawCampaigns || []).map(r => r.result).filter(Boolean),
     [rawCampaigns]
   );
 
@@ -56,9 +57,21 @@ export default function HomePage({ onSelect }) {
   // Enrich with round status
   const enriched = useMemo(() =>
     campaigns.map((c, i) => {
-      const round      = rawRounds?.[i]?.result;
-      const statusNum  = round ? Number(round.status) : -1; // -1 = not loaded yet
-      const statusName = statusNum >= 0 ? (ROUND_STATUS[statusNum] || "UPCOMING") : null;
+      const round     = rawRounds?.[i]?.result;
+      const statusNum = round ? Number(round.status) : -1;
+
+      // FIX 2: If the campaign itself is cancelled, always show CANCELLED
+      // regardless of what getCurrentRound returns (it may return stale data
+      // or even revert for cancelled campaigns)
+      let statusName;
+      if (c.cancelled) {
+        statusName = "CANCELLED";
+      } else if (statusNum >= 0) {
+        statusName = ROUND_STATUS[statusNum] || "UPCOMING";
+      } else {
+        statusName = null; // still loading
+      }
+
       return {
         ...c,
         _statusName: statusName,
@@ -69,20 +82,27 @@ export default function HomePage({ onSelect }) {
     [campaigns, rawRounds]
   );
 
-  // Filter + sort per tab — only run when rounds have loaded
+  // Filter + sort per tab
+  // For cancelled campaigns: rounds data may be null, so skip the null-check
+  // for campaigns that are already known-cancelled
   const displayed = useMemo(() => {
-    // If rounds not loaded yet, return empty to avoid flicker/duplicates
-    if (enriched.some(c => c._statusName === null)) return [];
+    // Wait for non-cancelled campaigns to have their round status loaded
+    const stillLoading = enriched.some(
+      c => !c.cancelled && c._statusName === null
+    );
+    if (stillLoading) return [];
 
     const active   = enriched.filter(c => c._statusName === "OPEN")
-      .sort((a, b) => a._drawTime - b._drawTime);          // ending soonest first
+      .sort((a, b) => a._drawTime - b._drawTime);
 
     const upcoming = enriched.filter(c => c._statusName === "UPCOMING")
-      .sort((a, b) => a._openTime - b._openTime);          // opening soonest first
+      .sort((a, b) => a._openTime - b._openTime);
 
+    // FIX: CANCELLED campaigns (c.cancelled===true) land here alongside
+    // completed/rolledover rounds
     const ended    = enriched.filter(c =>
-      ["COMPLETE","ROLLEDOVER","CANCELLED"].includes(c._statusName)
-    ).sort((a, b) => Number(b.id) - Number(a.id));         // newest id first
+      ["COMPLETE", "ROLLEDOVER", "CANCELLED"].includes(c._statusName)
+    ).sort((a, b) => Number(b.id) - Number(a.id));
 
     if (tab === "All")      return [...active, ...upcoming, ...ended];
     if (tab === "Active")   return active;
@@ -91,18 +111,21 @@ export default function HomePage({ onSelect }) {
     return enriched;
   }, [enriched, tab]);
 
-  // Stats
+  // Stats — exclude cancelled from "active" count but include in total
   const activeCount  = enriched.filter(c => c._statusName === "OPEN").length;
   const totalDistrib = campaigns.reduce((s, c) => s + (c.totalDistributed || 0n), 0n);
   const paidOut      = totalDistrib > 0n ? parseFloat(formatEther(totalDistrib)).toFixed(1) : "0";
 
-  const isLoading = loadingCampaigns || (campaigns.length > 0 && enriched.some(c => c._statusName === null));
+  const isLoading = loadingCampaigns || (
+    campaigns.length > 0 &&
+    enriched.some(c => !c.cancelled && c._statusName === null)
+  );
 
   const emptyMsg = {
-    All:      { icon: "🎟️", text: "No raffles yet", sub: "Create the first one from Admin." },
-    Active:   { icon: "⚡", text: "No active raffles",   sub: "Check back soon." },
-    Upcoming: { icon: "⏳", text: "No upcoming raffles", sub: "Check back soon." },
-    Ended:    { icon: "📜", text: "No completed raffles", sub: "Completed raffles appear here." },
+    All:      { icon: "🎟️", text: "No raffles yet",        sub: "Create the first one from Admin." },
+    Active:   { icon: "⚡", text: "No active raffles",     sub: "Check back soon." },
+    Upcoming: { icon: "⏳", text: "No upcoming raffles",   sub: "Check back soon." },
+    Ended:    { icon: "📜", text: "No completed raffles",  sub: "Completed raffles appear here." },
   };
 
   return (

@@ -6,6 +6,7 @@ import { useCountdown }          from "../hooks/useCountdown.js";
 import StatusBadge               from "../components/StatusBadge.jsx";
 import { CONTRACT_ADDRESS, EXPLORER } from "../config/wagmi.js";
 import { RAFFLE_ABI }            from "../abi.js";
+import { useCampaignCount }      from "../hooks/useRaffle.js";
 
 function short(addr) {
   return addr ? `${addr.slice(0, 6)}…${addr.slice(-4)}` : "";
@@ -29,22 +30,28 @@ function Divider() {
   );
 }
 
-
-
 // ─────────────────────────────────────────────────────────────
 // PastRounds — shows all completed rounds for this campaign
 // ─────────────────────────────────────────────────────────────
-function PastRounds({ campaign, currentRoundId }) {
+function PastRounds({ campaign, currentRoundId, totalCampaigns }) {
   const roundsRun = Number(campaign?.totalRoundsRun || 0);
   if (roundsRun === 0) return null;
 
-  // Include currentRoundId — it may itself be complete (last round, pool depleted)
-  // Go back roundsRun + 1 steps to ensure we catch all completed rounds
-  const roundIds = Array.from({ length: Math.min(roundsRun + 1, 20) }, (_, i) =>
+  // FIX 3: Round IDs are GLOBAL across all campaigns. With N campaigns running
+  // in parallel their rounds are interleaved. We must look back far enough to
+  // find all rounds belonging to this campaign.
+  // e.g. 3 campaigns × 5 rounds each → IDs spread across 15 slots.
+  const lookback = Math.min(
+    currentRoundId,
+    (roundsRun + 1) * Math.max(totalCampaigns, 3),
+    150  // hard cap to keep RPC calls reasonable
+  );
+
+  const roundIds = Array.from({ length: lookback }, (_, i) =>
     currentRoundId - i
   ).filter(id => id > 0);
 
-  // Fetch all rounds in batch
+  // Fetch all candidate rounds in batch
   const { data: rounds } = useReadContracts({
     contracts: roundIds.map(id => ({
       address: CONTRACT_ADDRESS, abi: RAFFLE_ABI,
@@ -145,7 +152,7 @@ function EntrantsList({ entrants, address, isSuccess }) {
   // Reverse so newest entry is at top
   const reversed = [...entrants].reverse();
   const myIndex  = reversed.findIndex(a => a.toLowerCase() === address?.toLowerCase());
-  const myRank   = entrants.findIndex(a => a.toLowerCase() === address?.toLowerCase()); // original rank (1-based display)
+  const myRank   = entrants.findIndex(a => a.toLowerCase() === address?.toLowerCase());
 
   // Scroll to my entry when I enter or on load
   useEffect(() => {
@@ -180,7 +187,7 @@ function EntrantsList({ entrants, address, isSuccess }) {
         className="px-2 py-2">
         {reversed.map((addr, i) => {
           const isMe    = addr.toLowerCase() === address?.toLowerCase();
-          const rank    = entrants.length - i; // original entry number (newest = highest)
+          const rank    = entrants.length - i;
           return (
             <div
               key={`${addr}-${i}`}
@@ -191,18 +198,15 @@ function EntrantsList({ entrants, address, isSuccess }) {
                 border:     isMe ? "1px solid rgba(16,185,129,0.3)" : "1px solid transparent",
                 marginBottom: 2,
               }}>
-              {/* Rank number */}
               <span className="w-6 text-xs text-right shrink-0 font-num"
                 style={{ color: "var(--muted)" }}>
                 #{rank}
               </span>
-              {/* Address */}
               <a href={`${EXPLORER}/address/${addr}`} target="_blank" rel="noreferrer"
                 className="font-mono text-sm hover:underline flex-1 truncate"
                 style={{ color: isMe ? "var(--teal)" : "var(--text)" }}>
                 {addr.slice(0, 10)}…{addr.slice(-6)}
               </a>
-              {/* You badge */}
               {isMe && (
                 <span className="text-xs font-semibold shrink-0"
                   style={{ color: "var(--teal)" }}>
@@ -224,18 +228,30 @@ export default function CampaignPage({ campaignId, navigate }) {
   const { data: hasEntered, refetch: refetchEntered } = useHasEntered(round?.id, address);
   const { data: winners }   = useWinners(round?.statusName === "COMPLETE" ? round?.id : null);
 
-  const isOpen     = round?.statusName === "OPEN";
-  const isUpcoming = round?.statusName === "UPCOMING";
-  const isEnded    = ["COMPLETE","CANCELLED"].includes(round?.statusName || "");
+  // FIX 6: Check campaign.cancelled directly so we always show the right state
+  // even if getCurrentRound returns stale/unexpected data for a cancelled campaign
+  const isCampaignCancelled = campaign?.cancelled === true;
+
+  const isOpen     = !isCampaignCancelled && round?.statusName === "OPEN";
+  const isUpcoming = !isCampaignCancelled && round?.statusName === "UPCOMING";
+  const isEnded    = isCampaignCancelled || ["COMPLETE","CANCELLED"].includes(round?.statusName || "");
+
+  // Derive the displayed status name
+  const displayStatus = isCampaignCancelled
+    ? "CANCELLED"
+    : (round?.statusName || "UPCOMING");
 
   const target = isOpen ? round?.drawTime : round?.openTime;
   const { timeLeft, parts, expired } = useCountdown(isEnded ? null : target);
+
+  // Total campaigns count — needed for correct PastRounds lookback
+  const { data: campaignCount } = useCampaignCount();
+  const totalCampaigns = campaignCount ? Number(campaignCount) : 1;
 
   // Wagmi write
   const { writeContract, data: txHash, isPending } = useWriteContract();
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: txHash });
   const [writeError, setWriteError] = useState(null);
-
 
   const handleEnter = async () => {
     setWriteError(null);
@@ -302,12 +318,31 @@ export default function CampaignPage({ campaignId, navigate }) {
       <div className="flex items-center justify-between gap-4 mb-6 flex-wrap">
         <h1 className="text-2xl sm:text-3xl font-bold" style={{ fontFamily: "'Syne', sans-serif" }}>
           Campaign #{campaignId}
-          <span className="text-base font-normal ml-2" style={{ color: "var(--muted)" }}>
-            Round #{round?.roundNumber?.toString() || "—"}
-          </span>
+          {!isCampaignCancelled && (
+            <span className="text-base font-normal ml-2" style={{ color: "var(--muted)" }}>
+              Round #{round?.roundNumber?.toString() || "—"}
+            </span>
+          )}
         </h1>
-        <StatusBadge statusName={round?.statusName || "UPCOMING"} size="lg" />
+        <StatusBadge statusName={displayStatus} size="lg" />
       </div>
+
+      {/* FIX 6: Cancelled campaign banner — shown prominently above the grid */}
+      {isCampaignCancelled && (
+        <div className="rounded-2xl p-5 mb-6 flex items-start gap-4"
+          style={{ background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.35)" }}>
+          <span className="text-2xl shrink-0">🛑</span>
+          <div>
+            <p className="font-semibold" style={{ color: "var(--red)" }}>
+              This campaign has been cancelled
+            </p>
+            <p className="text-sm mt-1" style={{ color: "var(--muted2)" }}>
+              No new rounds will run. The remaining pool has been refunded to the admin.
+              {Number(campaign.totalRoundsRun) > 0 && " Past completed rounds are shown below."}
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Two-column grid */}
       <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(min(100%,440px),1fr))", gap:"1.5rem", alignItems:"start" }}>
@@ -331,7 +366,7 @@ export default function CampaignPage({ campaignId, navigate }) {
           </p>
         </div>
 
-        {/* Countdown */}
+        {/* Countdown — only for live/upcoming rounds */}
         {!isEnded && (
           <div className="px-6 pb-5">
             <p className="text-xs text-center mb-3 uppercase tracking-widest"
@@ -353,14 +388,23 @@ export default function CampaignPage({ campaignId, navigate }) {
             )}
           </div>
         )}
-        {isEnded && (
+        {isEnded && !isCampaignCancelled && (
           <div className="px-6 pb-6 text-center">
             <p style={{ color: "var(--muted2)" }}>This round has ended.</p>
           </div>
         )}
+        {isCampaignCancelled && (
+          <div className="px-6 pb-6 text-center">
+            <p style={{ color: "var(--muted2)" }}>
+              {Number(campaign.totalRoundsRun) > 0
+                ? `${campaign.totalRoundsRun.toString()} rounds ran before cancellation.`
+                : "Cancelled before any rounds completed."}
+            </p>
+          </div>
+        )}
       </div>
 
-      {/* Enter button */}
+      {/* Enter button — only show when round is open and campaign is not cancelled */}
       {isOpen && (
         <div className="space-y-3">
           {isAdmin ? (
@@ -444,8 +488,12 @@ export default function CampaignPage({ campaignId, navigate }) {
         </div>
       )}
 
-      {/* Past rounds */}
-      <PastRounds campaign={campaign} currentRoundId={Number(round?.id || 0)} />
+      {/* Past rounds — pass totalCampaigns for correct lookback calculation */}
+      <PastRounds
+        campaign={campaign}
+        currentRoundId={Number(round?.id || 0)}
+        totalCampaigns={totalCampaigns}
+      />
 
       </div>{/* end left */}
 
@@ -459,7 +507,7 @@ export default function CampaignPage({ campaignId, navigate }) {
             <div className="text-4xl mb-3">🎟️</div>
             <p className="font-semibold">No entries yet</p>
             <p className="text-sm mt-1" style={{ color: "var(--muted)" }}>
-              {isOpen ? "Be the first to enter!" : "Entries open when the round starts."}
+              {isOpen ? "Be the first to enter!" : isCampaignCancelled ? "Campaign was cancelled." : "Entries open when the round starts."}
             </p>
           </div>
         )}

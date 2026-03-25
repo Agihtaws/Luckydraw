@@ -112,11 +112,48 @@ function RoundCard({ roundId, campaignId }) {
   );
 }
 
-function CampaignSection({ campaign, currentRoundId }) {
+function CampaignSection({ campaign, currentRoundId, totalCampaigns }) {
   const roundCount = Number(campaign.totalRoundsRun || 0);
   if (roundCount === 0) return null;
 
-  const roundIds = Array.from({ length: Math.min(roundCount + 1, 20) }, (_, i) =>
+  // FIX 3 + 4: Round IDs are GLOBAL — with N campaigns running in parallel, rounds
+  // are interleaved across campaigns. If there are 3 campaigns and this one has
+  // 5 completed rounds, the IDs might be spread across 15 global slots.
+  // We need to look back far enough to find all rounds belonging to this campaign.
+  // Formula: (roundCount + 1) * max(totalCampaigns, 3) gives enough headroom.
+  // Also guard against currentRoundId=0 (can happen if getCurrentRound reverts
+  // for a cancelled campaign) — in that case we can't enumerate rounds.
+  if (currentRoundId === 0) {
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <h2 className="text-lg font-bold">Campaign #{campaign.id.toString()}</h2>
+            {campaign.cancelled && (
+              <span className="text-xs px-2 py-1 rounded-full font-semibold"
+                style={{ background: "rgba(239,68,68,0.12)", color: "var(--red)", border: "1px solid rgba(239,68,68,0.3)" }}>
+                Cancelled
+              </span>
+            )}
+          </div>
+        </div>
+        <div className="rounded-2xl p-6 text-center"
+          style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
+          <p className="text-sm" style={{ color: "var(--muted)" }}>
+            {roundCount} completed round{roundCount !== 1 ? "s" : ""} — round data unavailable.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  const lookback = Math.min(
+    currentRoundId,
+    (roundCount + 1) * Math.max(totalCampaigns, 3),
+    150  // hard cap to avoid too many RPC calls
+  );
+
+  const roundIds = Array.from({ length: lookback }, (_, i) =>
     currentRoundId - i
   ).filter(id => id > 0);
 
@@ -130,6 +167,12 @@ function CampaignSection({ campaign, currentRoundId }) {
             style={{ background: "var(--surface2)", color: "var(--muted2)" }}>
             {roundCount} round{roundCount !== 1 ? "s" : ""} completed
           </span>
+          {campaign.cancelled && (
+            <span className="text-xs px-2 py-1 rounded-full font-semibold"
+              style={{ background: "rgba(239,68,68,0.12)", color: "var(--red)", border: "1px solid rgba(239,68,68,0.3)" }}>
+              Cancelled
+            </span>
+          )}
         </div>
         <a href={`${EXPLORER}/address/${CONTRACT_ADDRESS}`} target="_blank" rel="noreferrer"
           className="text-xs underline hidden sm:block" style={{ color: "var(--muted)" }}>
@@ -180,6 +223,8 @@ export default function HistoryPage() {
       const c = r.result;
       if (!c) return null;
       const round = rawRounds?.[i]?.result;
+      // FIX 4: round may be undefined/null if getCurrentRound reverted (cancelled campaign)
+      // _currentRoundId=0 is handled gracefully in CampaignSection
       return { ...c, _currentRoundId: round ? Number(round.id) : 0 };
     }).filter(Boolean).filter(c => Number(c.totalRoundsRun) > 0),
     [rawCampaigns, rawRounds]
@@ -219,6 +264,7 @@ export default function HistoryPage() {
             key={c.id.toString()}
             campaign={c}
             currentRoundId={c._currentRoundId}
+            totalCampaigns={total}
           />
         ))
       )}

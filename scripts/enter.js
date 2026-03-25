@@ -7,7 +7,7 @@ const path = require("path");
 // CONFIG
 // ─────────────────────────────────────────────────────────────
 
-const CAMPAIGN_ID   = 10n;       // ← update to your campaign ID
+const CAMPAIGN_ID   = 11n;       // ← update to your campaign ID
 const POLL_INTERVAL = 3_000;
 const POLL_TIMEOUT  = 600_000;
 

@@ -26,11 +26,20 @@ function short(addr) {
 function CardInner({ campaign, round, onClick }) {
   const poolDepleted = !campaign.remainingPool || campaign.remainingPool === 0n ||
     BigInt(campaign.remainingPool.toString()) === 0n;
-  const rawStatus  = round ? (ROUND_STATUS[Number(round.status)] || "UPCOMING") : "UPCOMING";
-  const statusName = poolDepleted ? "COMPLETE" : rawStatus;
+
+  const rawStatus = round ? (ROUND_STATUS[Number(round.status)] || "UPCOMING") : "UPCOMING";
+
+  // FIX 5: Check campaign.cancelled FIRST — it takes priority over pool depletion
+  // and round status. A cancelled campaign should always show as CANCELLED.
+  const statusName = campaign.cancelled
+    ? "CANCELLED"
+    : poolDepleted
+      ? "COMPLETE"
+      : rawStatus;
+
   const isOpen     = statusName === "OPEN";
   const isUpcoming = statusName === "UPCOMING";
-  const isEnded    = poolDepleted || ["COMPLETE","CANCELLED"].includes(statusName);
+  const isEnded    = campaign.cancelled || poolDepleted || ["COMPLETE","CANCELLED"].includes(statusName);
 
   const target = isOpen ? Number(round?.drawTime) : Number(round?.openTime);
   const { timeLeft, parts } = useCountdown(isEnded ? null : target);
@@ -72,7 +81,7 @@ function CardInner({ campaign, round, onClick }) {
           </div>
         </div>
 
-        {/* Countdown */}
+        {/* Countdown — only for non-ended campaigns */}
         {!isEnded && target > 0 && (
           <div className="rounded-xl px-4 py-3 flex items-center justify-between"
             style={{ background: "var(--surface2)", border: "1px solid var(--border)" }}>
