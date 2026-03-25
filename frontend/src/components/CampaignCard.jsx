@@ -28,9 +28,7 @@ function CardInner({ campaign, round, onClick }) {
     BigInt(campaign.remainingPool.toString()) === 0n;
 
   const rawStatus = round ? (ROUND_STATUS[Number(round.status)] || "UPCOMING") : "UPCOMING";
-
-  // FIX 5: Check campaign.cancelled FIRST — it takes priority over pool depletion
-  // and round status. A cancelled campaign should always show as CANCELLED.
+  
   const statusName = campaign.cancelled
     ? "CANCELLED"
     : poolDepleted
