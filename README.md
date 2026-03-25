@@ -3,7 +3,7 @@
 > **Autonomous on-chain raffles powered by Somnia Reactivity — prizes land in the same block as the draw.**
 
 [![Live Demo](https://img.shields.io/badge/Live%20Demo-ReactRaffle-7C3AED?style=for-the-badge)](https://luckydraw-ivory-zeta.vercel.app/)
-[![YouTube](https://img.shields.io/badge/Demo%20Video-YouTube-FF0000?style=for-the-badge&logo=youtube)](YOUR_YOUTUBE_LINK)
+[![YouTube](https://img.shields.io/badge/Demo%20Video-YouTube-FF0000?style=for-the-badge&logo=youtube)](https://youtu.be/A6Hx8exh0Jk)
 [![GitHub](https://img.shields.io/badge/Source-GitHub-181717?style=for-the-badge&logo=github)](https://github.com/Agihtaws/Luckydraw)
 
 
